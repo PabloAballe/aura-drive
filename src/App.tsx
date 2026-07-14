@@ -47,7 +47,6 @@ export default function App() {
   // Local Notifications State
   const [notifications, setNotifications] = useState<NotificationLog[]>([]);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
-  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: string }>>([]);
 
   // Sync undo logs
@@ -67,11 +66,6 @@ export default function App() {
       setStaleFiles(stale);
     }
   }, [files, staleDays, staleFilterType, staleSortType]);
-
-  // Sync unread notifications count
-  useEffect(() => {
-    setUnreadNotificationsCount(notifications.length);
-  }, [notifications]);
 
   /**
    * Pushes a local activity log / notification
@@ -140,7 +134,6 @@ export default function App() {
 
       // Detect empty directories
       const emptyDirs = await localFS.scanEmptyDirectories();
-      // Add custom state field to track empty directories selection
       const mappedEmptyDirs = emptyDirs.map(d => ({ ...d, shouldProcess: true })) as any[];
 
       setFiles(scanned);
@@ -156,7 +149,7 @@ export default function App() {
       setStaleFiles(stale);
       setIsScanning(false);
 
-      addNotification("Scan Completed", `Successfully scanned ${scanned.length} files and ${emptyDirs.length} empty directories.`, 'success');
+      addNotification("Scan Completed", `Scanned ${scanned.length} files and ${emptyDirs.length} empty directories.`, 'success');
     } catch (err: any) {
       console.error("Scan failed:", err);
       setIsScanning(false);
@@ -200,12 +193,12 @@ export default function App() {
           if (handle && handle.kind === 'directory') {
             await scanAndLoadFolder(handle as FileSystemDirectoryHandle);
           } else {
-            addNotification("Drop Ignored", "Dropped item is a file. Please drop a directory folder.", 'warning');
+            addNotification("Drop Ignored", "Please drop a directory folder.", 'warning');
             alert("Please drop a FOLDER, not a file.");
           }
         } catch (err) {
           console.error("Drop failed:", err);
-          addNotification("Drop Error", "Could not load folder from drop.", 'error');
+          addNotification("Drop Error", "Could not load folder.", 'error');
         }
       }
     }
@@ -416,7 +409,7 @@ export default function App() {
 
   const handleToggleSelectAllStale = (e: React.ChangeEvent<HTMLInputElement>) => {
     const isChecked = e.target.checked;
-    setStaleFiles(prev => prev.map(f => ({ ...f, shouldProcess: isChecked })));
+    setStaleFiles(prev => ({ ...prev, shouldProcess: isChecked } as any));
   };
 
   const handleToggleSelectAllFolders = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -439,7 +432,7 @@ export default function App() {
     setLoadedFolderName('');
     setIsFolderLoaded(false);
     setShowUndoBanner(false);
-    addNotification("Session Closed", "Loaded folder closed and cache cleared.", 'info');
+    addNotification("Session Closed", "Scanned files cache cleared.", 'info');
   };
 
   const handleSaveSettings = (strategy: string) => {
@@ -472,33 +465,12 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--background)' }}>
-      {/* SHADCN SLEEK VERTICAL NAVIGATION RAIL (FAR LEFT) */}
-      <nav style={{ width: '64px', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 0', gap: '28px', backgroundColor: 'var(--background)', zIndex: 10 }}>
-        <div style={{ color: 'var(--primary)', fontSize: '1.25rem', marginBottom: '8px' }} title="AuraDrive System">
-          <i className="fa-solid fa-shield-halved"></i>
-        </div>
-        <div style={{ color: 'var(--muted-foreground)', fontSize: '1.15rem', cursor: 'pointer', transition: 'color var(--transition-fast)' }} title="Dashboard">
-          <i className="fa-solid fa-house"></i>
-        </div>
-        <div style={{ color: 'var(--muted-foreground)', fontSize: '1.15rem', cursor: 'pointer' }} title="Projects">
-          <i className="fa-solid fa-file-invoice"></i>
-        </div>
-        <div style={{ color: 'var(--foreground)', fontSize: '1.15rem', cursor: 'pointer', borderLeft: '2px solid var(--primary)', paddingLeft: '2px' }} title="Duplicate File Cleaner (Active Tool)">
-          <i className="fa-solid fa-database"></i>
-        </div>
-        <div style={{ color: 'var(--muted-foreground)', fontSize: '1.15rem', cursor: 'pointer' }} title="Scanners">
-          <i className="fa-solid fa-folder"></i>
-        </div>
-        <div style={{ color: 'var(--muted-foreground)', fontSize: '1.15rem', cursor: 'pointer', marginTop: 'auto' }} title="System Settings">
-          <i className="fa-solid fa-gear"></i>
-        </div>
-      </nav>
-
+      
       {/* MAIN CONTAINER */}
-      <div id="app-container" style={{ flex: 1, paddingLeft: '16px' }}>
+      <div id="app-container" style={{ flex: 1, padding: '0 24px' }}>
         
-        {/* SHADCN HEADER */}
-        <header className="glass" style={{ margin: '0 0 20px 0', padding: '16px 0', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderRadius: 0 }}>
+        {/* SHADCN HEADER - CLEAN & FUNCTIONAL */}
+        <header className="glass" style={{ margin: '0 0 24px 0', padding: '16px 0', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderRadius: 0 }}>
           <div className="logo-container">
             <div className="logo-icon">
               <i className="fa-solid fa-hard-drive"></i>
@@ -506,32 +478,24 @@ export default function App() {
             <span className="logo-text">AuraDrive</span>
             <span style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: '4px', marginLeft: '6px' }}>Local Cleaner</span>
           </div>
-
-          {/* Central Mock Menu Links */}
-          <div style={{ display: 'flex', gap: '24px', fontSize: '0.88rem' }}>
-            <span style={{ color: 'var(--muted-foreground)', cursor: 'pointer' }}>Dashboard</span>
-            <span style={{ color: 'var(--muted-foreground)', cursor: 'pointer' }}>Projects</span>
-            <span style={{ color: 'var(--foreground)', fontWeight: 600, borderBottom: '2px solid var(--primary)', paddingBottom: '4px' }}>Tools</span>
-            <span style={{ color: 'var(--muted-foreground)', cursor: 'pointer' }}>Settings</span>
-          </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}>
             {/* Notification Bell Dropdown Button */}
             <button 
               className="action-btn secondary-btn" 
               onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
-              style={{ padding: '8px', borderRadius: '50%', width: '36px', height: '36px', border: '1px solid var(--border)', position: 'relative', display: 'flex', alignItems: 'center', justifyContents: 'center' }}
+              style={{ padding: '8px', borderRadius: '50%', width: '36px', height: '36px', border: '1px solid var(--border)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               title="Recent Activity Logs"
             >
               <i className="fa-solid fa-bell" style={{ fontSize: '0.95rem' }}></i>
-              {unreadNotificationsCount > 0 && (
+              {notifications.length > 0 && (
                 <span style={{ position: 'absolute', top: '2px', right: '2px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--danger)' }}></span>
               )}
             </button>
 
             {/* Notification Dropdown Menu */}
             {showNotificationDropdown && (
-              <div className="glass" style={{ position: 'absolute', top: '44px', right: '110px', width: '280px', maxHeight: '350px', overflowY: 'auto', zIndex: 999, padding: '12px', border: '1px solid var(--border)', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div className="glass" style={{ position: 'absolute', top: '44px', right: '0px', width: '280px', maxHeight: '350px', overflowY: 'auto', zIndex: 999, padding: '12px', border: '1px solid var(--border)', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
                   <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Activity Logs ({notifications.length})</span>
                   <button onClick={() => setNotifications([])} style={{ background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem' }}>Clear All</button>
@@ -551,15 +515,6 @@ export default function App() {
                 )}
               </div>
             )}
-
-            {/* Profile avatar (John Doe) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--secondary)', color: '#fff', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' }}>
-                JD
-              </div>
-              <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--muted-foreground)' }}>John Doe</span>
-              <i className="fa-solid fa-chevron-down" style={{ fontSize: '0.68rem', color: 'var(--muted-foreground)' }}></i>
-            </div>
           </div>
         </header>
 
@@ -612,11 +567,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Breadcrumbs */}
-          <div style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>AuraDrive Tools</span> <i className="fa-solid fa-chevron-right" style={{ fontSize: '0.62rem' }}></i> <span style={{ color: 'var(--foreground)' }}>Duplicate File Cleaner</span>
-          </div>
-
           <div className="organizer-layout">
             
             {/* LEFT COLUMN: STATS PANELS */}
@@ -657,7 +607,7 @@ export default function App() {
                   <span style={{ fontSize: '0.74rem', color: 'var(--secondary)', fontWeight: 600 }}>+4.2%</span>
                 </div>
                 <span style={{ fontSize: '0.74rem', color: 'var(--muted-foreground)' }}>
-                  {isFolderLoaded ? `${countAll.toLocaleString()} scanned today` : '0 scanned today'}
+                  {isFolderLoaded ? `${countAll.toLocaleString()} scanned files` : '0 scanned files'}
                 </span>
               </div>
 
