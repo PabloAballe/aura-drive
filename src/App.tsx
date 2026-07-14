@@ -599,6 +599,59 @@ export default function App() {
                 )}
               </div>
 
+              {/* Settings Panel */}
+              <div className="glass" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted-foreground)' }}>
+                  Scanner Settings
+                </div>
+                
+                {/* Old Files Days Slider */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--foreground)' }}>Stale Files Age</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--warning)' }}>{staleDays} days</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="30" 
+                    max="365" 
+                    step="5"
+                    value={staleDays} 
+                    onChange={(e) => setStaleDays(parseInt(e.target.value))}
+                    style={{ width: '100%' }}
+                  />
+                  <span style={{ fontSize: '0.66rem', color: 'var(--muted-foreground)' }}>
+                    Files unmodified for {staleDays} days are classed as "stale".
+                  </span>
+                </div>
+
+                {/* Duplicate Strategy Dropdown */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--foreground)' }}>Duplicates Strategy</label>
+                  <select 
+                    className="rule-input-field" 
+                    style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.78rem', width: '100%', outline: 'none' }}
+                    value={duplicateStrategy}
+                    onChange={(e) => handleSaveSettings(e.target.value)}
+                  >
+                    <option value="trash">Move to Trash (_Trash/)</option>
+                    <option value="delete">Delete Permanently</option>
+                    <option value="mark">Rename (Prefix with duplicate_)</option>
+                  </select>
+                </div>
+
+                {/* Ignored Folders list */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="fa-solid fa-triangle-exclamation"></i>
+                    Auto-ignored directories:
+                  </span>
+                  <span style={{ fontSize: '0.68rem', fontFamily: 'monospace', color: 'var(--muted-foreground)' }}>
+                    .git, node_modules, _Trash, _Archive
+                  </span>
+                </div>
+              </div>
+
               {/* STAT Card 1: Total Scanned Files */}
               <div className="glass" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <div style={{ fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted-foreground)' }}>Total Scanned Files</div>
@@ -662,22 +715,7 @@ export default function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>DUPLICATE FILE CLEANER</h3>
                   
-                  {/* Duplicates strategy selection inline */}
-                  {isFolderLoaded && activeTab === 'duplicates' && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '0.76rem', color: 'var(--muted-foreground)' }}>Action:</span>
-                      <select 
-                        className="rule-input-field" 
-                        style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 8px', fontSize: '0.76rem', width: 'auto', outline: 'none' }}
-                        value={duplicateStrategy}
-                        onChange={(e) => handleSaveSettings(e.target.value)}
-                      >
-                        <option value="trash">Trash (_Trash/)</option>
-                        <option value="delete">Delete Permanently</option>
-                        <option value="mark">Prefix Name</option>
-                      </select>
-                    </div>
-                  )}
+                  {/* Settings can be adjusted in the left sidebar panel */}
                 </div>
                 
                 {/* Three Tabs Toggle */}
@@ -733,7 +771,45 @@ export default function App() {
 
                 {/* Lists Tables */}
                 {isFolderLoaded && !isScanning && (
-                  <div className="table-container" style={{ flex: 1, padding: '0 20px 20px 20px' }}>
+                  <>
+                    {/* Sub-filters settings inside card (pinned above table scroll container) */}
+                    {activeTab === 'stale' && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', margin: '0 20px 14px 20px', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>File Type:</span>
+                          <select 
+                            className="rule-input-field" 
+                            style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '6px', padding: '3px 6px', fontSize: '0.76rem', width: 'auto', outline: 'none' }}
+                            value={staleFilterType}
+                            onChange={(e) => setStaleFilterType(e.target.value as any)}
+                          >
+                            <option value="all">All Files</option>
+                            <option value="images">Images & Screenshots</option>
+                            <option value="documents">Documents Only</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>Rank by:</span>
+                          <select 
+                            className="rule-input-field" 
+                            style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '6px', padding: '3px 6px', fontSize: '0.76rem', width: 'auto', outline: 'none' }}
+                            value={staleSortType}
+                            onChange={(e) => setStaleSortType(e.target.value as any)}
+                          >
+                            <option value="size">Size (Largest First)</option>
+                            <option value="age">Age (Oldest First)</option>
+                          </select>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>Age:</span>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>&gt; {staleDays} days</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="table-container" style={{ flex: 1, padding: '0 20px 20px 20px' }}>
                     
                     {/* TAB 1: DUPLICATES */}
                     {activeTab === 'duplicates' && (
@@ -849,100 +925,63 @@ export default function App() {
 
                     {/* TAB 2: OLD FILES */}
                     {activeTab === 'stale' && (
-                      <div>
-                        {/* Sub-filters settings inside card */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: '14px', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.01)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>File Type:</span>
-                            <select 
-                              className="rule-input-field" 
-                              style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '6px', padding: '3px 6px', fontSize: '0.76rem', width: 'auto', outline: 'none' }}
-                              value={staleFilterType}
-                              onChange={(e) => setStaleFilterType(e.target.value as any)}
-                            >
-                              <option value="all">All Files</option>
-                              <option value="images">Images & Screenshots</option>
-                              <option value="documents">Documents Only</option>
-                            </select>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>Rank by:</span>
-                            <select 
-                              className="rule-input-field" 
-                              style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '6px', padding: '3px 6px', fontSize: '0.76rem', width: 'auto', outline: 'none' }}
-                              value={staleSortType}
-                              onChange={(e) => setStaleSortType(e.target.value as any)}
-                            >
-                              <option value="size">Size (Largest First)</option>
-                              <option value="age">Age (Oldest First)</option>
-                            </select>
-                          </div>
-                          
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>Age:</span>
-                            <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>&gt; {staleDays} days</span>
-                          </div>
-                        </div>
-
-                        <table>
-                          <thead>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th width="30">
+                              <input 
+                                type="checkbox" 
+                                className="checkbox-custom" 
+                                onChange={handleToggleSelectAllStale}
+                                checked={staleFiles.length > 0 && staleFiles.every(f => f.shouldProcess === true)}
+                              />
+                            </th>
+                            <th>Name</th>
+                            <th>Age</th>
+                            <th>Last Modified</th>
+                            <th>Size Rank</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {countStale === 0 ? (
                             <tr>
-                              <th width="30">
-                                <input 
-                                  type="checkbox" 
-                                  className="checkbox-custom" 
-                                  onChange={handleToggleSelectAllStale}
-                                  checked={staleFiles.length > 0 && staleFiles.every(f => f.shouldProcess === true)}
-                                />
-                              </th>
-                              <th>Name</th>
-                              <th>Age</th>
-                              <th>Last Modified</th>
-                              <th>Size Rank</th>
+                              <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>
+                                No stale files found matching criteria.
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {countStale === 0 ? (
-                              <tr>
-                                <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>
-                                  No stale files found matching criteria.
-                                </td>
-                              </tr>
-                            ) : (
-                              staleFiles.map((file, idx) => {
-                                const isChecked = file.shouldProcess === true;
-                                const modDate = new Date(file.lastModified).toLocaleDateString();
+                          ) : (
+                            staleFiles.map((file, idx) => {
+                              const isChecked = file.shouldProcess === true;
+                              const modDate = new Date(file.lastModified).toLocaleDateString();
 
-                                return (
-                                  <tr key={file.path || idx}>
-                                    <td>
-                                      <input 
-                                        type="checkbox" 
-                                        className="checkbox-custom" 
-                                        checked={isChecked} 
-                                        onChange={() => handleToggleStaleSelection(file.path)}
-                                      />
-                                    </td>
-                                    <td>
-                                      <div className="file-item">
-                                        <i className={getFileIcon(file.name)}></i>
-                                        <span className="file-name-cell" title={file.path}>{file.name}</span>
-                                        {file.isScreenshot && <span className="badge badge-warning" style={{ fontSize: '0.62rem', marginLeft: '4px' }}>Screenshot</span>}
-                                      </div>
-                                    </td>
-                                    <td>
-                                      <span className="badge badge-warning" style={{ fontSize: '0.72rem' }}>{file.ageDays} days</span>
-                                    </td>
-                                    <td style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{modDate}</td>
-                                    <td style={{ fontWeight: 600 }}>{formatBytes(file.size)}</td>
-                                  </tr>
-                                );
-                              })
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+                              return (
+                                <tr key={file.path || idx}>
+                                  <td>
+                                    <input 
+                                      type="checkbox" 
+                                      className="checkbox-custom" 
+                                      checked={isChecked} 
+                                      onChange={() => handleToggleStaleSelection(file.path)}
+                                    />
+                                  </td>
+                                  <td>
+                                    <div className="file-item">
+                                      <i className={getFileIcon(file.name)}></i>
+                                      <span className="file-name-cell" title={file.path}>{file.name}</span>
+                                      {file.isScreenshot && <span className="badge badge-warning" style={{ fontSize: '0.62rem', marginLeft: '4px' }}>Screenshot</span>}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <span className="badge badge-warning" style={{ fontSize: '0.72rem' }}>{file.ageDays} days</span>
+                                  </td>
+                                  <td style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{modDate}</td>
+                                  <td style={{ fontWeight: 600 }}>{formatBytes(file.size)}</td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
                     )}
 
                     {/* TAB 3: EMPTY FOLDERS */}
@@ -1008,7 +1047,8 @@ export default function App() {
                       </table>
                     )}
                   </div>
-                )}
+                </>
+              )}
 
                 {/* Table Footer Controls (inside the card matching layout) */}
                 {isFolderLoaded && !isScanning && (
