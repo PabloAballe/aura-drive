@@ -121,7 +121,7 @@ export default function App() {
       }
 
       // Detect duplicates
-      const dups = detectDuplicates(scanned);
+      const dups = await detectDuplicates(scanned, localFS.fileHandlesMap);
       
       // Auto-check duplicates for deletion
       scanned.forEach(file => {
@@ -212,7 +212,7 @@ export default function App() {
       const dirHandle = localFS.rootDirHandle!;
       const scanned = await localFS.scan(dirHandle, '', true) as ScannedFile[];
       
-      const dups = detectDuplicates(scanned);
+      const dups = await detectDuplicates(scanned, localFS.fileHandlesMap);
       scanned.forEach(file => {
         if (file.isDuplicate) file.shouldProcess = true;
       });
