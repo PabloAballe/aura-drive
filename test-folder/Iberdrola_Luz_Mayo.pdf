@@ -1,0 +1,9 @@
+Iberdrola Clientes S.A.U.
+Factura rectificativa de energía eléctrica.
+Número de factura rectificada: ES192830192.
+Fecha de emisión: 15/05/2026.
+Importe Total: 124.50 EUR.
+Periodo de facturación: Marzo - Mayo 2026.
+CUPS: ES0021000000000000XX.
+Extra details to make this file size different from the original invoice file.
+This prevents the duplicate detector from marking it as a duplicate, while triggering a naming collision since the date, vendor and amount are identical!
