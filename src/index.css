@@ -152,6 +152,7 @@ main {
   flex-direction: column;
   padding-bottom: 20px;
   overflow: hidden;
+  min-height: 0;
 }
 
 .organizer-layout {
@@ -162,6 +163,7 @@ main {
   flex: 1;
   height: 100%;
   overflow: hidden;
+  min-height: 0;
 }
 
 .organizer-layout > div:first-child {
@@ -293,6 +295,7 @@ main {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  min-height: 0;
 }
 
 .workspace-header {
@@ -334,6 +337,8 @@ main {
 .table-container {
   padding: 0 20px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 table {

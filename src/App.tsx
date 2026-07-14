@@ -742,7 +742,7 @@ export default function App() {
               </div>
 
               {/* Workspace Content */}
-              <div id="workspace-content" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <div id="workspace-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
                 
                 {/* Empty State */}
                 {!isFolderLoaded && !isScanning && (
