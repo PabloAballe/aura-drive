@@ -1,36 +1,63 @@
-# AuraDrive - Duplicate Cleaner & Stale Files Archiver
+# AuraDrive
 
-> **Reclaim disk space safely. No cloud logins, 100% private, offline, and with a complete Undo safety net.**
+> **Reclaim your storage, protect your privacy, and organize with a complete safety net.**
 
-AuraDrive is a minimalist, local-first web utility designed to solve two main storage problems on your hard drive or cloud folders without complex scripts or privacy risks:
-
-1. **Duplicate files**: Finding identical copies of files scattered across folders and safely cleaning them.
-2. **Old / Forgotten files**: Ranking files that haven't been modified in a long time (e.g. 6 months or 1 year) by size, allowing you to archive them.
+[![AuraDrive Banner](./public/hero.png)](https://pabloaballe.github.io/aura-drive/)
 
 ---
 
-## ✨ Features
+## ⚡ The Problem: Bloated Drives & Lost Peace of Mind
 
-* 🛡️ **100% Offline & Private**: Runs entirely inside your web browser. Your directories and files never leave your computer.
-* ↩️ **Session Undo (Safety Net)**: Every move or cleanup is fully reversible. If you delete duplicates or archive old files and regret it, one click on the **Undo** button restores them back to their exact original paths.
-* 🗑️ **Duplicates Cleanup**: Automatically groups identical files (by name proxy and size) and moves copies to a `_Trash/` folder.
-* 📅 **Stale Files Ranking**: Set your preferred age threshold (e.g., 90, 180, or 360 days) to see a list of old files ranked by size (largest first), showing you exactly what is wasting the most space. Click **Archive** to move them into an `_Archive/` folder preserving their original folder structure.
+Our hard drives and synced cloud folders are constantly overflowing with duplicate images, forgotten massive backups, and stale screenshots. 
+
+* **The tedious search**: Spending hours manually hunting down duplicates.
+* **The privacy risk**: Uploading your personal directory trees to third-party cloud cleaners.
+* **The fear of deletion**: Accidentally deleting a critical file with no easy way to get it back.
 
 ---
 
-## 🚀 Quick Start (React + TypeScript + Vite)
+## 🎯 The Solution: AuraDrive
 
-AuraDrive is hosted on GitHub Pages:
-👉 **[Open AuraDrive Live](https://pabloaballe.github.io/aura-drive/)**
+**AuraDrive** is a minimalist, local-first web dashboard that cleans up your folder chaos in seconds. Built on modern web technologies, it runs **100% inside your browser offline**. Your files never leave your computer.
 
-To run it locally in development mode:
+### 👉 [Launch AuraDrive Web App Live](https://pabloaballe.github.io/aura-drive/)
+
+---
+
+## ✨ Features Built for Speed & Safety
+
+* 🛡️ **Absolute Privacy**: No servers, no accounts, no APIs. Directory scanning and local file movements are performed locally using the native browser File System Access API.
+* ↩️ **Safety Net (Interactive Undo)**: Relocate and clean without fear. If you make a mistake, one click on the **Undo** button instantly restores every file back to its original name and path, and cleans up empty folders.
+* 🗑️ **Smart Duplicate Cleaner**: Groups identical files (by name proxy and size) and moves copies to a virtual trash folder (`_Trash/`) in a single click.
+* 📅 **Stale Files Sorter & Ranking**: Set your preferred age threshold (e.g. 90, 180, or 360 days) to see a list of old files ranked by size (largest first). Select and click **Archive** to move them into an `_Archive/` folder, preserving their original folder structure.
+
+---
+
+## 🛠️ How To Test (Offline Workspace)
+
+We've included a pre-configured [test-folder](./test-folder) in this repository containing mock files so you can test all features safely out of the box:
+* **Duplicate Screeners**: Multiple identical images and screenshot copies.
+* **Stale Archives**: Large backups and videos modified months ago.
+
+1. Open [AuraDrive Live](https://pabloaballe.github.io/aura-drive/).
+2. Select or drag the [test-folder](./test-folder) into the app.
+3. Review the preview lists, test the filters/sort rankings, and execute a **Clean** or **Archive**.
+4. Click **Undo** to watch everything restore instantly.
+
+---
+
+## 🚀 Running Locally (Developer Quickstart)
+
+AuraDrive is built with **React, TypeScript, and Vite**, matching the clean aesthetic of **Shadcn/UI**.
 
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/PabloAballe/aura-drive.git
    ```
-2. **Launch dev environment**:
-   - On **Windows**: Double-click `run.bat` (automatically configures local node paths and opens the browser).
+2. **Start the local server**:
+   - On **Windows**: Double-click `run.bat` (automatically configures local node paths and launches the dev server).
    - Alternatively (any OS): Run `npm install` and then `npm run dev`.
+3. **Open in browser**:
+   Navigate to: [http://localhost:5173](http://localhost:5173)
 
-*Note: File System Access API is recommended on Google Chrome, Microsoft Edge, or Opera.*
+*Note: For the native directory scanning experience, we recommend using Google Chrome, Microsoft Edge, or Opera.*
