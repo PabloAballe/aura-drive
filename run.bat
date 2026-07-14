@@ -1,5 +1,5 @@
 @echo off
-echo Starting AuraDrive AI Local Server...
-echo Running Python HTTP Server on port 8000...
-start "" "http://localhost:8000"
-python -m http.server 8000
+echo Starting AuraDrive React Dev Server (Vite)...
+set "PATH=C:\Users\Usuario\AppData\Roaming\nvm\v20.20.2;%PATH%"
+start "" "http://localhost:5173"
+npm run dev

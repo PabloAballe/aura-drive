@@ -26,7 +26,7 @@ class LocalFSManager {
 
   async selectRootDirectory() {
     if (!this.isSupported()) {
-      throw new Error("La API de Acceso a Archivos no está soportada por tu navegador.");
+      throw new Error("File System Access API is not supported by your browser.");
     }
     
     this.reset();
@@ -156,7 +156,7 @@ class LocalFSManager {
       }
 
       if (progressCallback) {
-        progressCallback(count, total, `Organizando: ${item.originalName}`);
+        progressCallback(count, total, `Organizing: ${item.originalName}`);
       }
 
       try {
@@ -179,7 +179,7 @@ class LocalFSManager {
             // Can't undo permanent deletions, write no undo entry
           } else {
             // Rename with prefix
-            const renamedName = `[DUPLICADO]_${item.originalName}`;
+            const renamedName = `[DUPLICATE]_${item.originalName}`;
             await this.moveFile(fileHandle, parentHandle, parentHandle, renamedName);
             this.transactionHistory.push({
               type: 'rename',
@@ -214,7 +214,7 @@ class LocalFSManager {
     }
 
     if (progressCallback) {
-      progressCallback(total, total, "Completado");
+      progressCallback(total, total, "Completed");
     }
   }
 
@@ -223,7 +223,7 @@ class LocalFSManager {
    */
   async undo(progressCallback = null) {
     if (this.transactionHistory.length === 0) {
-      throw new Error("No hay operaciones registradas para deshacer.");
+      throw new Error("No operations recorded to undo.");
     }
 
     const total = this.transactionHistory.length;
@@ -234,7 +234,7 @@ class LocalFSManager {
       const transaction = this.transactionHistory[i];
       
       if (progressCallback) {
-        progressCallback(count, total, `Deshaciendo: ${transaction.sourceName}`);
+        progressCallback(count, total, `Undoing: ${transaction.sourceName}`);
       }
 
       try {
@@ -275,7 +275,7 @@ class LocalFSManager {
 
     this.transactionHistory = [];
     if (progressCallback) {
-      progressCallback(total, total, "Deshecho completado");
+      progressCallback(total, total, "Undo completed");
     }
   }
 

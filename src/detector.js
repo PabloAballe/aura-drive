@@ -159,7 +159,7 @@ export function resolveNamingConflicts(files) {
           const oldName = file.proposedName;
           file.proposedName = `${base}_${index}${ext}`;
           file.hasConflict = true;
-          file.conflictReason = `Conflicto de nombre: Ya existe otro archivo '${oldName}' en la carpeta de destino. Renombrado con sufijo a '${file.proposedName}' para evitar sobrescribir datos.`;
+          file.conflictReason = `Name conflict: Another file would be named '${oldName}' in destination. Appended suffix to '${file.proposedName}' to avoid overwriting data.`;
         }
       });
     }

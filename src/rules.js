@@ -1,5 +1,5 @@
 /**
- * rules.js - AuraDrive AI Renaming and Routing Configuration Engine
+ * rules.js - AuraDrive Renaming and Routing Configuration Engine (English)
  * Defines default rules for matching categories, and handles renaming template parsing.
  */
 
@@ -7,47 +7,47 @@
 export const DEFAULT_RULES = [
   {
     id: 'invoices',
-    name: 'Facturas y Recibos',
+    name: 'Invoices and Receipts',
     category: 'invoices',
     extensions: ['.pdf', '.docx', '.jpg', '.jpeg', '.png'],
     keywords: ['invoice', 'factura', 'recibo', 'receipt', 'ticket', 'bill', 'compra'],
-    folderPattern: 'Facturas/{{year}}/{{vendor}}',
+    folderPattern: 'Invoices/{{year}}/{{vendor}}',
     namePattern: '{{year}}{{month}}{{day}} - {{vendor}} - {{amount}}'
   },
   {
     id: 'contracts',
-    name: 'Contratos y Acuerdos',
+    name: 'Contracts and Agreements',
     category: 'contracts',
     extensions: ['.pdf', '.docx', '.doc', '.odt'],
     keywords: ['contrato', 'contract', 'nda', 'agreement', 'acuerdo', 'convenio', 'lease'],
-    folderPattern: 'Documentos/Contratos',
-    namePattern: 'Contrato - {{client}} - {{year}}'
+    folderPattern: 'Documents/Contracts',
+    namePattern: 'Contract - {{client}} - {{year}}'
   },
   {
     id: 'media',
-    name: 'Fotos y Videos',
+    name: 'Photos and Videos',
     category: 'media',
     extensions: ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mov', '.heic', '.webp'],
     keywords: ['img', 'dsc', 'photo', 'foto', 'video', 'vid', 'panorama'],
-    folderPattern: 'Multimedia/Fotos/{{year}}-{{month}}',
+    folderPattern: 'Media/Photos/{{year}}-{{month}}',
     namePattern: 'Photo_{{year}}{{month}}{{day}}_{{hour}}{{minute}}{{second}}'
   },
   {
     id: 'code',
-    name: 'Archivos de Desarrollo',
+    name: 'Development Files',
     category: 'code',
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.py', '.html', '.css', '.json', '.sh', '.go', '.rs', '.java'],
     keywords: ['code', 'script', 'main', 'test', 'index', 'app', 'utils', 'component'],
-    folderPattern: 'Desarrollo/Proyectos',
+    folderPattern: 'Development/Projects',
     namePattern: '{{name}}'
   },
   {
     id: 'other',
-    name: 'Documentos Generales',
+    name: 'General Documents',
     category: 'other',
     extensions: ['.pdf', '.docx', '.xlsx', '.xls', '.pptx', '.ppt', '.txt', '.zip', '.rar'],
     keywords: [],
-    folderPattern: 'Documentos/Generales',
+    folderPattern: 'Documents/General',
     namePattern: '{{name}}'
   }
 ];
@@ -94,9 +94,9 @@ export function extractMetadataFromFilename(filename) {
     hour: '12',
     minute: '00',
     second: '00',
-    vendor: 'Empresa',
+    vendor: 'Vendor',
     amount: '0.00',
-    client: 'Cliente'
+    client: 'Client'
   };
 
   // 1. Try to extract Date (YYYY-MM-DD or DD-MM-YYYY)
@@ -147,7 +147,6 @@ export function extractMetadataFromFilename(filename) {
   const currencyRegex = /(?:[\$€£]\s*|)\b(\d+(?:[.,]\d{2})?)\b(?:\s*[\$€£]|eur|usd|gbp|)/i;
   const matchAmount = nameWithoutExt.match(currencyRegex);
   if (matchAmount && matchAmount[1]) {
-    // Avoid picking up year as amount
     if (matchAmount[1] !== meta.year) {
       meta.amount = matchAmount[1].replace(',', '.');
     }
@@ -180,7 +179,6 @@ export function renderTemplate(template, metadata) {
     rendered = rendered.replace(regex, value);
   }
   
-  // Clean up double slashes or leading/trailing slashes in folder structures
   rendered = rendered
     .replace(/\/+/g, '/')
     .replace(/^\//, '')
