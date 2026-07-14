@@ -20,8 +20,8 @@
   --primary-hover: #4f46e5;     /* Indigo 600 */
   --primary-foreground: #ffffff;
   
-  --secondary: #1f2937;         /* Slate 800 */
-  --secondary-foreground: #f9fafb;
+  --secondary: #10b981;         /* Success Green */
+  --secondary-foreground: #ffffff;
   
   --muted: #111827;             /* Slate 900 */
   --muted-foreground: #9ca3af;  /* Slate 400 */
@@ -48,12 +48,17 @@
   box-sizing: border-box;
 }
 
+html, body, #root {
+  height: 100vh;
+  overflow: hidden;
+}
+
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background-color: var(--background);
   color: var(--foreground);
-  min-height: 100vh;
-  overflow-x: hidden;
+  height: 100vh;
+  overflow: hidden;
   position: relative;
   -webkit-font-smoothing: antialiased;
 }
@@ -62,10 +67,11 @@ body {
 #app-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 24px;
+  overflow: hidden;
 }
 
 /* HEADER STYLE - Shadcn Flat Divider */
@@ -144,14 +150,36 @@ main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding-bottom: 40px;
+  padding-bottom: 20px;
+  overflow: hidden;
 }
 
 .organizer-layout {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+.organizer-layout > div:first-child {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.organizer-layout > div:first-child::-webkit-scrollbar {
+  width: 4px;
+}
+
+.organizer-layout > div:first-child::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
 }
 
 /* SHADCN CARD BASE */
@@ -263,7 +291,8 @@ main {
 .workspace-panel {
   display: flex;
   flex-direction: column;
-  min-height: 520px;
+  height: 100%;
+  overflow: hidden;
 }
 
 .workspace-header {
@@ -538,3 +567,64 @@ input[type="range"]::-webkit-slider-thumb {
 input[type="range"]:active::-webkit-slider-thumb {
   transform: scale(1.15);
 }
+
+/* RESPONSIVE LAYOUT FOR MOBILE SCREENS */
+@media (max-width: 768px) {
+  html, body, #root, #app-container {
+    height: auto !important;
+    overflow: auto !important;
+  }
+  
+  #app-container {
+    padding: 0 16px;
+  }
+  
+  header {
+    margin-bottom: 16px;
+  }
+  
+  main {
+    height: auto !important;
+    overflow: auto !important;
+    padding-bottom: 40px;
+  }
+  
+  .organizer-layout {
+    grid-template-columns: 1fr;
+    height: auto !important;
+    overflow: auto !important;
+    gap: 16px;
+  }
+  
+  .organizer-layout > div:first-child {
+    height: auto !important;
+    overflow: auto !important;
+  }
+  
+  .workspace-panel {
+    height: auto !important;
+    min-height: 480px;
+    overflow: auto !important;
+  }
+  
+  #workspace-content {
+    height: auto !important;
+    overflow: auto !important;
+  }
+  
+  .table-container {
+    height: auto !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    padding: 0 10px;
+  }
+  
+  table {
+    min-width: 600px; /* Force table horizontal scroll on mobile instead of squishing */
+  }
+  
+  .file-name-cell {
+    max-width: 180px;
+  }
+}
+
