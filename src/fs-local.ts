@@ -1,21 +1,34 @@
 /**
- * fs-local.js - Refactored File System Access Handler with Archive & Undo Support
- * Handles scanning local folders, moving duplicates to trash, archiving old files, and reversing actions.
+ * fs-local.ts - Advanced File System Access Handler
+ * Handles scanning, moving duplicates to trash, archiving old files, deleting empty folders, and Undo support.
  */
 
+export interface DirectoryLog {
+  name: string;
+  path: string;
+}
+
 class LocalFSManager {
-  constructor() {
-    this.rootDirHandle = null;
-    this.fileHandlesMap = new Map(); // relativePath -> FileSystemFileHandle
-    this.parentHandlesMap = new Map(); // relativePath -> FileSystemDirectoryHandle (parent)
-    this.createdDirectories = new Set(); // Directories created by us during execution
-    this.transactionHistory = []; // Transaction logs for Undo support
-  }
+  rootDirHandle: FileSystemDirectoryHandle | null = null;
+  fileHandlesMap = new Map<string, FileSystemFileHandle>(); // relativePath -> FileHandle
+  parentHandlesMap = new Map<string, FileSystemDirectoryHandle>(); // relativePath -> Parent DirectoryHandle
+  directoryHandlesMap = new Map<string, FileSystemDirectoryHandle>(); // relativePath -> DirectoryHandle
+  createdDirectories = new Set<string>(); // Directories created by us
+  transactionHistory: Array<{
+    type: 'trash' | 'rename' | 'archive' | 'delete-folder';
+    fileHandle?: FileSystemFileHandle;
+    directoryHandle?: FileSystemDirectoryHandle;
+    sourceParentHandle: FileSystemDirectoryHandle;
+    targetParentHandle?: FileSystemDirectoryHandle;
+    sourceName: string;
+    targetName?: string;
+  }> = [];
 
   reset() {
     this.rootDirHandle = null;
     this.fileHandlesMap.clear();
     this.parentHandlesMap.clear();
+    this.directoryHandlesMap.clear();
     this.createdDirectories.clear();
     this.transactionHistory = [];
   }
@@ -37,10 +50,10 @@ class LocalFSManager {
   }
 
   /**
-   * Recursively scans directories
+   * Recursively scans files and directories
    */
-  async scan(dirHandle = this.rootDirHandle, currentRelativePath = '', recursive = true) {
-    const filesList = [];
+  async scan(dirHandle: FileSystemDirectoryHandle = this.rootDirHandle!, currentRelativePath = '', recursive = true): Promise<any[]> {
+    const filesList: any[] = [];
     
     for await (const entry of dirHandle.values()) {
       const entryPath = currentRelativePath ? `${currentRelativePath}/${entry.name}` : entry.name;
@@ -65,8 +78,10 @@ class LocalFSManager {
           console.error("Error reading file metadata", entry.name, e);
         }
       } else if (entry.kind === 'directory' && recursive) {
-        // Skip hidden folders, trash and archives
         if (!entry.name.startsWith('.') && entry.name !== '_Trash' && entry.name !== '_Archive') {
+          this.directoryHandlesMap.set(entryPath, entry);
+          this.parentHandlesMap.set(entryPath, dirHandle);
+          
           const subFiles = await this.scan(entry, entryPath, recursive);
           filesList.push(...subFiles);
         }
@@ -77,15 +92,58 @@ class LocalFSManager {
   }
 
   /**
+   * Recursively checks if a folder directory handle is completely empty (no files and no non-empty subfolders)
+   */
+  async isDirEmpty(dirHandle: FileSystemDirectoryHandle): Promise<boolean> {
+    let isEmpty = true;
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === 'file') {
+        isEmpty = false;
+        break;
+      } else if (entry.kind === 'directory') {
+        const subEmpty = await this.isDirEmpty(entry);
+        if (!subEmpty) {
+          isEmpty = false;
+          break;
+        }
+      }
+    }
+    return isEmpty;
+  }
+
+  /**
+   * Identifies all empty directories inside the scanned tree
+   */
+  async scanEmptyDirectories(): Promise<DirectoryLog[]> {
+    const emptyDirs: DirectoryLog[] = [];
+    
+    for (const [path, handle] of this.directoryHandlesMap.entries()) {
+      try {
+        const isEmpty = await this.isDirEmpty(handle);
+        if (isEmpty) {
+          emptyDirs.push({
+            name: handle.name,
+            path: path
+          });
+        }
+      } catch (e) {
+        console.error("Failed to check directory emptiness", path, e);
+      }
+    }
+    
+    return emptyDirs;
+  }
+
+  /**
    * Resolves or creates a nested subfolder structure starting from root.
    */
-  async getOrCreateDirectory(pathString) {
+  async getOrCreateDirectory(pathString: string): Promise<FileSystemDirectoryHandle> {
     if (!pathString || pathString === '.' || pathString === '/') {
-      return this.rootDirHandle;
+      return this.rootDirHandle!;
     }
 
     const parts = pathString.split('/').filter(p => p.length > 0);
-    let currentDir = this.rootDirHandle;
+    let currentDir = this.rootDirHandle!;
     let accumulatedPath = '';
 
     for (const part of parts) {
@@ -111,14 +169,14 @@ class LocalFSManager {
   /**
    * Cleans duplicates by trashing, deleting, or renaming them.
    */
-  async cleanDuplicates(duplicatesToClean, strategy = 'trash', progressCallback = null) {
+  async cleanDuplicates(duplicatesToClean: any[], strategy = 'trash', progressCallback: any = null) {
     if (!this.rootDirHandle) throw new Error("No root directory selected.");
     
     this.transactionHistory = []; // Reset history for this session
     const total = duplicatesToClean.length;
     let count = 0;
 
-    let trashDirHandle = null;
+    let trashDirHandle: FileSystemDirectoryHandle | null = null;
     if (strategy === 'trash' && total > 0) {
       trashDirHandle = await this.rootDirHandle.getDirectoryHandle('_Trash', { create: true });
       this.createdDirectories.add('_Trash');
@@ -139,12 +197,12 @@ class LocalFSManager {
 
       try {
         if (strategy === 'trash') {
-          await this.moveFile(fileHandle, parentHandle, trashDirHandle, file.name);
+          await this.moveFile(fileHandle, parentHandle, trashDirHandle!, file.name);
           this.transactionHistory.push({
             type: 'trash',
             fileHandle,
             sourceParentHandle: parentHandle,
-            targetParentHandle: trashDirHandle,
+            targetParentHandle: trashDirHandle!,
             sourceName: file.name,
             targetName: file.name
           });
@@ -176,7 +234,7 @@ class LocalFSManager {
   /**
    * Archives selected old files to an _Archive folder, preserving their relative subpath.
    */
-  async archiveFiles(filesToArchive, progressCallback = null) {
+  async archiveFiles(filesToArchive: any[], progressCallback: any = null) {
     if (!this.rootDirHandle) throw new Error("No root directory selected.");
 
     this.transactionHistory = []; // Reset history for this session
@@ -230,9 +288,54 @@ class LocalFSManager {
   }
 
   /**
+   * Deletes selected empty folders and records them for Undo recreation.
+   */
+  async deleteEmptyFolders(foldersToDelete: DirectoryLog[], progressCallback: any = null) {
+    if (!this.rootDirHandle) throw new Error("No root directory selected.");
+
+    this.transactionHistory = []; // Reset history
+    const total = foldersToDelete.length;
+    let count = 0;
+
+    // Sort folders by deepness descending (deepest folders deleted first)
+    const sortedFolders = [...foldersToDelete].sort((a, b) => b.path.split('/').length - a.path.split('/').length);
+
+    for (const folder of sortedFolders) {
+      const dirHandle = this.directoryHandlesMap.get(folder.path);
+      const parentHandle = this.parentHandlesMap.get(folder.path);
+
+      if (!dirHandle || !parentHandle) {
+        count++;
+        continue;
+      }
+
+      if (progressCallback) {
+        progressCallback(count, total, `Deleting empty folder: ${folder.name}`);
+      }
+
+      try {
+        // Remove subdirectory entry
+        await parentHandle.removeEntry(folder.name, { recursive: true });
+        
+        this.transactionHistory.push({
+          type: 'delete-folder',
+          directoryHandle: dirHandle,
+          sourceParentHandle: parentHandle,
+          sourceName: folder.name
+        });
+      } catch (e) {
+        console.error("Failed to delete directory:", folder.path, e);
+      }
+      count++;
+    }
+
+    if (progressCallback) progressCallback(total, total, "Completed");
+  }
+
+  /**
    * Reverses operations recorded in the last execution (restoring original files).
    */
-  async undo(progressCallback = null) {
+  async undo(progressCallback: any = null) {
     if (this.transactionHistory.length === 0) {
       throw new Error("No operations recorded to undo.");
     }
@@ -249,30 +352,35 @@ class LocalFSManager {
       }
 
       try {
-        let currentFileHandle = null;
-        try {
-          currentFileHandle = await tx.targetParentHandle.getFileHandle(tx.targetName);
-        } catch (e) {
-          currentFileHandle = tx.fileHandle;
-        }
+        if (tx.type === 'delete-folder') {
+          // Recreate empty folder
+          await tx.sourceParentHandle.getDirectoryHandle(tx.sourceName, { create: true });
+        } else {
+          // Restoring file movement
+          let currentFileHandle = null;
+          try {
+            currentFileHandle = await tx.targetParentHandle!.getFileHandle(tx.targetName!);
+          } catch (e) {
+            currentFileHandle = tx.fileHandle!;
+          }
 
-        await this.moveFile(currentFileHandle, tx.targetParentHandle, tx.sourceParentHandle, tx.sourceName);
+          await this.moveFile(currentFileHandle, tx.targetParentHandle!, tx.sourceParentHandle, tx.sourceName);
+        }
       } catch (e) {
         console.error("Error undoing transaction for", tx.sourceName, e);
       }
       count++;
     }
 
-    // Attempt to remove empty directories created by us
+    // Attempt to remove empty directories created by us during organization
     const dirsToRemove = Array.from(this.createdDirectories).sort((a, b) => b.split('/').length - a.split('/').length);
     for (const dirPath of dirsToRemove) {
       try {
         const parts = dirPath.split('/');
-        const dirName = parts.pop();
+        const dirName = parts.pop()!;
         const parentPath = parts.join('/');
         
         const parentDirHandle = await this.getOrCreateDirectory(parentPath);
-        // Will fail silently if not empty, which is safe
         await parentDirHandle.removeEntry(dirName, { recursive: false });
         this.createdDirectories.delete(dirPath);
       } catch (e) {
@@ -289,14 +397,19 @@ class LocalFSManager {
   /**
    * Helper to write/move file handle
    */
-  async moveFile(fileHandle, sourceDirHandle, targetDirHandle, targetName) {
+  async moveFile(
+    fileHandle: FileSystemFileHandle, 
+    sourceDirHandle: FileSystemDirectoryHandle, 
+    targetDirHandle: FileSystemDirectoryHandle, 
+    targetName: string
+  ) {
     if (sourceDirHandle === targetDirHandle && fileHandle.name === targetName) {
       return;
     }
 
-    if (typeof fileHandle.move === 'function') {
+    if (typeof (fileHandle as any).move === 'function') {
       try {
-        await fileHandle.move(targetDirHandle, targetName);
+        await (fileHandle as any).move(targetDirHandle, targetName);
         return;
       } catch (e) {
         console.warn("modern move() failed, falling back to copy+delete", e);
