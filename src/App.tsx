@@ -1,22 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { localFS } from './fs-local';
-import { detectDuplicates, detectStaleFiles } from './detector';
+import { detectDuplicates, detectStaleFiles, isImageFile, isScreenshotFile, ScannedFile } from './detector';
 
 export default function App() {
   // Core State
-  const [files, setFiles] = useState([]);
-  const [duplicates, setDuplicates] = useState([]);
-  const [staleFiles, setStaleFiles] = useState([]);
-  const [duplicateInfo, setDuplicateInfo] = useState({ duplicateGroups: [], duplicateCount: 0, savingPotentialBytes: 0 });
+  const [files, setFiles] = useState<ScannedFile[]>([]);
+  const [staleFiles, setStaleFiles] = useState<ScannedFile[]>([]);
+  const [duplicateInfo, setDuplicateInfo] = useState({ 
+    duplicateGroups: [] as any[], 
+    duplicateCount: 0, 
+    savingPotentialBytes: 0,
+    duplicateImagesCount: 0,
+    duplicateImagesBytes: 0
+  });
 
   // Settings
   const [staleDays, setStaleDays] = useState(180); // Default: 6 months
   const [duplicateStrategy, setDuplicateStrategy] = useState(localStorage.getItem('auradrive_dup_strategy') || 'trash');
 
+  // Filter & Sort for Stale Files Tab
+  const [staleFilterType, setStaleFilterType] = useState<'all' | 'images' | 'documents'>('all');
+  const [staleSortType, setStaleSortType] = useState<'size' | 'age'>('size'); // size = largest first, age = oldest first
+
   // Folder Context
   const [loadedFolderName, setLoadedFolderName] = useState('');
   const [isFolderLoaded, setIsFolderLoaded] = useState(false);
-  const [activeTab, setActiveTab] = useState('duplicates'); // 'duplicates' | 'stale'
+  const [activeTab, setActiveTab] = useState<'duplicates' | 'stale'>('duplicates');
 
   // Progress Loading States
   const [isScanning, setIsScanning] = useState(false);
@@ -31,18 +40,26 @@ export default function App() {
     setUndoHistoryLength(localFS.transactionHistory.length);
   }, [showUndoBanner, files]);
 
-  // Re-run stale filtering when staleDays or files change
+  // Re-run stale filtering when staleDays, files, filterType, or sortType change
   useEffect(() => {
     if (files.length > 0) {
-      const stale = detectStaleFiles(files, staleDays);
+      const stale = detectStaleFiles(files, staleDays, staleFilterType);
+      
+      // Apply Sorting
+      if (staleSortType === 'size') {
+        stale.sort((a, b) => b.size - a.size); // Largest size first
+      } else {
+        stale.sort((a, b) => b.lastModified - a.lastModified); // Oldest age first (lower lastModified timestamp = older)
+      }
+      
       setStaleFiles(stale);
     }
-  }, [files, staleDays]);
+  }, [files, staleDays, staleFilterType, staleSortType]);
 
   /**
    * Helper to format bytes
    */
-  const formatBytes = (bytes, decimals = 2) => {
+  const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const dm = decimals < 0 ? 0 : decimals;
@@ -54,7 +71,7 @@ export default function App() {
   /**
    * Scan & Evaluate Folder
    */
-  const scanAndLoadFolder = async (dirHandle) => {
+  const scanAndLoadFolder = async (dirHandle: FileSystemDirectoryHandle) => {
     setShowUndoBanner(false);
     setLoadedFolderName(dirHandle.name);
     setIsFolderLoaded(true);
@@ -64,7 +81,7 @@ export default function App() {
 
     try {
       localFS.rootDirHandle = dirHandle;
-      const scanned = await localFS.scan(dirHandle, '', true);
+      const scanned = await localFS.scan(dirHandle, '', true) as ScannedFile[];
       
       if (scanned.length === 0) {
         setIsScanning(false);
@@ -88,11 +105,16 @@ export default function App() {
       setFiles(scanned);
       setDuplicateInfo(dups);
       
-      const stale = detectStaleFiles(scanned, staleDays);
+      const stale = detectStaleFiles(scanned, staleDays, staleFilterType);
+      if (staleSortType === 'size') {
+        stale.sort((a, b) => b.size - a.size);
+      } else {
+        stale.sort((a, b) => b.lastModified - a.lastModified);
+      }
       setStaleFiles(stale);
       
       setIsScanning(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Scan failed:", err);
       setIsScanning(false);
       alert("Failed to scan directory: " + err.message);
@@ -103,7 +125,7 @@ export default function App() {
     try {
       const dirHandle = await localFS.selectRootDirectory();
       await scanAndLoadFolder(dirHandle);
-    } catch (e) {
+    } catch (e: any) {
       if (e.name !== 'AbortError') {
         alert("Error loading directory: " + e.message);
       }
@@ -111,7 +133,7 @@ export default function App() {
   };
 
   // Drag and Drop
-  const handleDragOver = (e) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
   };
@@ -120,7 +142,7 @@ export default function App() {
     setIsDragOver(false);
   };
 
-  const handleDrop = async (e) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
 
@@ -130,8 +152,8 @@ export default function App() {
       if (item.kind === 'file') {
         try {
           const handle = await item.getAsFileSystemHandle();
-          if (handle.kind === 'directory') {
-            await scanAndLoadFolder(handle);
+          if (handle && handle.kind === 'directory') {
+            await scanAndLoadFolder(handle as FileSystemDirectoryHandle);
           } else {
             alert("Please drop a FOLDER, not a file.");
           }
@@ -148,8 +170,8 @@ export default function App() {
     setProgressText("Refreshing structure...");
     setProgressSubtext("Updating file statuses...");
     try {
-      const dirHandle = localFS.rootDirHandle;
-      const scanned = await localFS.scan(dirHandle, '', true);
+      const dirHandle = localFS.rootDirHandle!;
+      const scanned = await localFS.scan(dirHandle, '', true) as ScannedFile[];
       
       // Detect duplicates
       const dups = detectDuplicates(scanned);
@@ -160,7 +182,12 @@ export default function App() {
       setFiles(scanned);
       setDuplicateInfo(dups);
       
-      const stale = detectStaleFiles(scanned, staleDays);
+      const stale = detectStaleFiles(scanned, staleDays, staleFilterType);
+      if (staleSortType === 'size') {
+        stale.sort((a, b) => b.size - a.size);
+      } else {
+        stale.sort((a, b) => b.lastModified - a.lastModified);
+      }
       setStaleFiles(stale);
       setIsScanning(false);
     } catch (e) {
@@ -193,7 +220,7 @@ export default function App() {
 
       setShowUndoBanner(true);
       await scanFolderQuietly();
-    } catch (e) {
+    } catch (e: any) {
       console.error("Cleanup failed:", e);
       setIsScanning(false);
       alert("Error cleaning duplicates: " + e.message);
@@ -224,7 +251,7 @@ export default function App() {
 
       setShowUndoBanner(true);
       await scanFolderQuietly();
-    } catch (e) {
+    } catch (e: any) {
       console.error("Archive failed:", e);
       setIsScanning(false);
       alert("Error archiving files: " + e.message);
@@ -253,7 +280,7 @@ export default function App() {
       alert("All files successfully restored!");
       setShowUndoBanner(false);
       await scanFolderQuietly();
-    } catch (e) {
+    } catch (e: any) {
       console.error("Undo failed:", e);
       setIsScanning(false);
       alert("Error undoing changes: " + e.message);
@@ -263,7 +290,7 @@ export default function App() {
   /**
    * Grid Checkboxes Toggles
    */
-  const handleToggleFileSelection = (path) => {
+  const handleToggleFileSelection = (path: string) => {
     setFiles(prev => prev.map(f => {
       if (f.path === path) {
         return { ...f, shouldProcess: !f.shouldProcess };
@@ -272,7 +299,7 @@ export default function App() {
     }));
   };
 
-  const handleToggleStaleSelection = (path) => {
+  const handleToggleStaleSelection = (path: string) => {
     setStaleFiles(prev => prev.map(f => {
       if (f.path === path) {
         return { ...f, shouldProcess: !f.shouldProcess };
@@ -281,7 +308,7 @@ export default function App() {
     }));
   };
 
-  const handleToggleSelectAllDups = (e) => {
+  const handleToggleSelectAllDups = (e: React.ChangeEvent<HTMLInputElement>) => {
     const isChecked = e.target.checked;
     setFiles(prev => prev.map(f => {
       if (f.isDuplicate) {
@@ -291,23 +318,28 @@ export default function App() {
     }));
   };
 
-  const handleToggleSelectAllStale = (e) => {
+  const handleToggleSelectAllStale = (e: React.ChangeEvent<HTMLInputElement>) => {
     const isChecked = e.target.checked;
     setStaleFiles(prev => prev.map(f => ({ ...f, shouldProcess: isChecked })));
   };
 
   const clearWorkspaceState = () => {
     setFiles([]);
-    setDuplicates([]);
     setStaleFiles([]);
-    setDuplicateInfo({ duplicateGroups: [], duplicateCount: 0, savingPotentialBytes: 0 });
+    setDuplicateInfo({ 
+      duplicateGroups: [], 
+      duplicateCount: 0, 
+      savingPotentialBytes: 0,
+      duplicateImagesCount: 0,
+      duplicateImagesBytes: 0
+    });
     localFS.reset();
     setLoadedFolderName('');
     setIsFolderLoaded(false);
     setShowUndoBanner(false);
   };
 
-  const handleSaveSettings = (strategy) => {
+  const handleSaveSettings = (strategy: string) => {
     setDuplicateStrategy(strategy);
     localStorage.setItem('auradrive_dup_strategy', strategy);
   };
@@ -319,6 +351,18 @@ export default function App() {
 
   const activeDupsToProcess = files.some(f => f.isDuplicate && f.shouldProcess !== false);
   const activeStaleToProcess = staleFiles.some(f => f.shouldProcess === true);
+
+  const getFileIcon = (filename: string) => {
+    if (isScreenshotFile(filename)) return 'fa-solid fa-desktop text-accent';
+    if (isImageFile(filename)) return 'fa-solid fa-image text-success';
+    
+    const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+    if (['.pdf'].includes(ext)) return 'fa-solid fa-file-pdf text-danger';
+    if (['.docx', '.doc', '.odt', '.txt', '.rtf'].includes(ext)) return 'fa-solid fa-file-word text-primary';
+    if (['.xlsx', '.xls', '.csv'].includes(ext)) return 'fa-solid fa-file-excel text-success';
+    if (['.mp4', '.mov', '.avi'].includes(ext)) return 'fa-solid fa-file-video text-accent';
+    return 'fa-solid fa-file-lines text-muted';
+  };
 
   return (
     <div id="app-container">
@@ -387,7 +431,7 @@ export default function App() {
               )}
             </div>
 
-            {/* Folder Metrics */}
+            {/* Folder Metrics & Space Saved */}
             {isFolderLoaded && (
               <div className="storage-card glass" style={{ padding: '20px' }}>
                 <div className="selection-title" style={{ marginBottom: '15px' }}>Folder Statistics</div>
@@ -397,17 +441,29 @@ export default function App() {
                     <span className="legend-header"><i className="fa-solid fa-file text-muted" style={{ width: '16px' }}></i> Total files:</span>
                     <span className="legend-val">{countAll}</span>
                   </div>
+                  
+                  <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0' }}></div>
+                  
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    <span className="legend-header"><i className="fa-solid fa-clone text-warning" style={{ width: '16px' }}></i> Duplicates:</span>
+                    <span className="legend-header"><i className="fa-solid fa-clone text-warning" style={{ width: '16px' }}></i> Duplicate files:</span>
                     <span className="legend-val" style={{ color: 'var(--warning)', fontWeight: 600 }}>{countDups}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    <span className="legend-header"><i className="fa-solid fa-clock text-accent" style={{ width: '16px' }}></i> Old files:</span>
-                    <span className="legend-val" style={{ color: 'var(--accent)', fontWeight: 600 }}>{countStale}</span>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', paddingLeft: '16px' }}>
+                    <span className="legend-header" style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}><i className="fa-solid fa-image" style={{ width: '12px', marginRight: '4px' }}></i> Images & Screenshots:</span>
+                    <span className="legend-val" style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>{duplicateInfo.duplicateImagesCount} ({formatBytes(duplicateInfo.duplicateImagesBytes)})</span>
                   </div>
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                     <span className="legend-header"><i className="fa-solid fa-circle-down text-success" style={{ width: '16px' }}></i> Savings potential:</span>
                     <span className="legend-val" style={{ color: 'var(--secondary)', fontWeight: 600 }}>{formatBytes(duplicateInfo.savingPotentialBytes)}</span>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0' }}></div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    <span className="legend-header"><i className="fa-solid fa-clock text-accent" style={{ width: '16px' }}></i> Old files found:</span>
+                    <span className="legend-val" style={{ color: 'var(--accent)', fontWeight: 600 }}>{countStale}</span>
                   </div>
                 </div>
               </div>
@@ -557,6 +613,8 @@ export default function App() {
                           // Render duplicate groups
                           files.filter(f => f.isDuplicateOriginal || f.isDuplicate).map((file, idx) => {
                             const isChecked = file.shouldProcess !== false;
+                            const isScreenshot = isScreenshotFile(file.name);
+                            const isImage = isImageFile(file.name);
 
                             if (file.isDuplicateOriginal) {
                               return (
@@ -567,6 +625,8 @@ export default function App() {
                                         <span>
                                           <i className="fa-solid fa-clone text-warning" style={{ marginRight: '8px' }}></i>
                                           Duplicate Group: <strong>{file.name}</strong> ({formatBytes(file.size)})
+                                          {isScreenshot && <span className="badge badge-warning" style={{ marginLeft: '8px', fontSize: '0.68rem' }}><i className="fa-solid fa-desktop"></i> Screenshot</span>}
+                                          {!isScreenshot && isImage && <span className="badge badge-info" style={{ marginLeft: '8px', fontSize: '0.68rem' }}><i className="fa-solid fa-image"></i> Image</span>}
                                         </span>
                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                                           Original: <code style={{ color: 'var(--secondary)' }}>{file.path}</code>
@@ -636,66 +696,99 @@ export default function App() {
                     </table>
                   ) : (
                     /* --- OLD FILES RANKING PREVIEW --- */
-                    <table>
-                      <thead>
-                        <tr>
-                          <th width="30">
-                            <input 
-                              type="checkbox" 
-                              className="checkbox-custom" 
-                              onChange={handleToggleSelectAllStale}
-                              checked={staleFiles.length > 0 && staleFiles.every(f => f.shouldProcess === true)}
-                            />
-                          </th>
-                          <th>Old File Path</th>
-                          <th>Age (Inactive)</th>
-                          <th>Last Modified</th>
-                          <th>Size Rank</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {countStale === 0 ? (
-                          <tr>
-                            <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                              No inactive files found matching your {staleDays}-day threshold.
-                            </td>
-                          </tr>
-                        ) : (
-                          // Render stale files list ranked by size descending
-                          staleFiles.map((file, idx) => {
-                            const isChecked = file.shouldProcess === true;
-                            const modDate = new Date(file.lastModified).toLocaleDateString();
+                    <div>
+                      {/* Sub-Filters and Sorters Controls */}
+                      <div className="glass" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid var(--border-color)', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Filter files:</span>
+                          <select 
+                            className="rule-input-field" 
+                            style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px 8px', fontSize: '0.8rem', outline: 'none' }}
+                            value={staleFilterType}
+                            onChange={(e) => setStaleFilterType(e.target.value as any)}
+                          >
+                            <option value="all">All Old Files</option>
+                            <option value="images">Images & Screenshots Only</option>
+                            <option value="documents">Documents Only</option>
+                          </select>
+                        </div>
 
-                            return (
-                              <tr key={file.path || idx}>
-                                <td>
-                                  <input 
-                                    type="checkbox" 
-                                    className="checkbox-custom" 
-                                    checked={isChecked} 
-                                    onChange={() => handleToggleStaleSelection(file.path)}
-                                  />
-                                </td>
-                                <td>
-                                  <div className="file-item">
-                                    <i className="fa-solid fa-clock-rotate-left text-accent"></i>
-                                    <span className="file-name-cell" title={file.path}>{file.name}</span>
-                                  </div>
-                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '20px' }}>
-                                    Path: {file.path}
-                                  </div>
-                                </td>
-                                <td>
-                                  <span className="badge badge-warning" style={{ fontSize: '0.78rem' }}>{file.ageDays} days old</span>
-                                </td>
-                                <td style={{ fontFamily: 'monospace' }}>{modDate}</td>
-                                <td style={{ fontWeight: 600, color: 'var(--text-main)' }}>{formatBytes(file.size)}</td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Sort by ranking:</span>
+                          <select 
+                            className="rule-input-field" 
+                            style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px 8px', fontSize: '0.8rem', outline: 'none' }}
+                            value={staleSortType}
+                            onChange={(e) => setStaleSortType(e.target.value as any)}
+                          >
+                            <option value="size">File Size (Largest First)</option>
+                            <option value="age">File Age (Oldest First)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <table>
+                        <thead>
+                          <tr>
+                            <th width="30">
+                              <input 
+                                type="checkbox" 
+                                className="checkbox-custom" 
+                                onChange={handleToggleSelectAllStale}
+                                checked={staleFiles.length > 0 && staleFiles.every(f => f.shouldProcess === true)}
+                              />
+                            </th>
+                            <th>Old File Path</th>
+                            <th>Age (Inactive)</th>
+                            <th>Last Modified</th>
+                            <th>Size Rank</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {countStale === 0 ? (
+                            <tr>
+                              <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                                No inactive files found matching your criteria.
+                              </td>
+                            </tr>
+                          ) : (
+                            // Render stale files list ranked by criteria
+                            staleFiles.map((file, idx) => {
+                              const isChecked = file.shouldProcess === true;
+                              const modDate = new Date(file.lastModified).toLocaleDateString();
+
+                              return (
+                                <tr key={file.path || idx}>
+                                  <td>
+                                    <input 
+                                      type="checkbox" 
+                                      className="checkbox-custom" 
+                                      checked={isChecked} 
+                                      onChange={() => handleToggleStaleSelection(file.path)}
+                                    />
+                                  </td>
+                                  <td>
+                                    <div className="file-item">
+                                      <i className={getFileIcon(file.name)}></i>
+                                      <span className="file-name-cell" title={file.path}>{file.name}</span>
+                                      {file.isScreenshot && <span className="badge badge-warning" style={{ fontSize: '0.68rem', marginLeft: '6px', padding: '1px 4px' }}>Screenshot</span>}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '20px' }}>
+                                      Path: {file.path}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <span className="badge badge-warning" style={{ fontSize: '0.78rem' }}>{file.ageDays} days old</span>
+                                  </td>
+                                  <td style={{ fontFamily: 'monospace' }}>{modDate}</td>
+                                  <td style={{ fontWeight: 600, color: 'var(--text-main)' }}>{formatBytes(file.size)}</td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               )}

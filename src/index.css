@@ -362,6 +362,30 @@ main {
   color: var(--text-main);
 }
 
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted) !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  border-bottom: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tab-btn:hover {
+  color: var(--text-secondary) !important;
+}
+
+.tab-btn.active {
+  color: var(--text-main) !important;
+  border-bottom: 2px solid var(--primary) !important;
+}
+
 /* Empty workspace state */
 .empty-state {
   flex: 1;
