@@ -1,46 +1,36 @@
-# AuraDrive
+# AuraDrive - Duplicate Cleaner & Stale Files Archiver
 
-> **Reclaim the peace of mind of a clean workspace. No complex scripts, no cloud logins, and a complete safety net.**
+> **Reclaim disk space safely. No cloud logins, 100% private, offline, and with a complete Undo safety net.**
 
-We all know the stress of a chaotic Downloads or Desktop folder overflowing with files named `Invoice_temp_2026_final.pdf`, duplicate screenshots in three different subfolders, and miscellaneous code files. Cleaning it up is boring and time-consuming, and doing it quickly runs the risk of accidentally deleting something important.
+AuraDrive is a minimalist, local-first web utility designed to solve two main storage problems on your hard drive or cloud folders without complex scripts or privacy risks:
 
-**AuraDrive** is a minimalist, local-first web app that organizes your folder chaos in seconds, running entirely in your browser offline.
-
----
-
-## ✨ Why AuraDrive?
-
-* 🛡️ **Absolute Privacy (100% Offline)**: Your files never leave your computer. All analysis, renaming, and routing occur inside your browser using the native File System Access API.
-* ↩️ **Safety Net (Interactive Undo)**: Organize without fear. If you don't like the new folder structure, click **Undo** to instantly restore every file back to its original name and path, and clean up empty folders created during the process.
-* 🎯 **Smart Conflict Prevention**: If two different files would end up with the same proposed name (e.g. two separate utility bills from the same day), AuraDrive automatically appends numerical suffixes (`_1.pdf`) and alerts you in the preview grid to avoid overwriting data.
-* 🗑️ **Duplicate Cleanup**: Group identical files by size and name similarity, allowing you to move them to a virtual trash folder (`_Trash/`) with a single click (reversible with Undo).
-* ☁️ **Zero-API Cloud Sync**: Organize your cloud storage (Google Drive or OneDrive) without configuring OAuth consoles or developer credentials. Simply select your local Google Drive or OneDrive synced folder; your official desktop client will upload the organized structure automatically.
+1. **Duplicate files**: Finding identical copies of files scattered across folders and safely cleaning them.
+2. **Old / Forgotten files**: Ranking files that haven't been modified in a long time (e.g. 6 months or 1 year) by size, allowing you to archive them.
 
 ---
 
-## 🛠️ How It Works (In 3 Steps)
+## ✨ Features
 
-1. **Drop Your Folder**: Drag any cluttered folder from your file manager and drop it into AuraDrive.
-2. **Review Proposed Changes**: See a side-by-side preview of what will change, which folders will be created, and which duplicates will be trashed.
-3. **Organize**: Click **Organize Folder** to execute the changes instantly on your drive.
+* 🛡️ **100% Offline & Private**: Runs entirely inside your web browser. Your directories and files never leave your computer.
+* ↩️ **Session Undo (Safety Net)**: Every move or cleanup is fully reversible. If you delete duplicates or archive old files and regret it, one click on the **Undo** button restores them back to their exact original paths.
+* 🗑️ **Duplicates Cleanup**: Automatically groups identical files (by name proxy and size) and moves copies to a `_Trash/` folder.
+* 📅 **Stale Files Ranking**: Set your preferred age threshold (e.g., 90, 180, or 360 days) to see a list of old files ranked by size (largest first), showing you exactly what is wasting the most space. Click **Archive** to move them into an `_Archive/` folder preserving their original folder structure.
 
 ---
 
-## 🚀 Quick Start (React + Vite)
+## 🚀 Quick Start (React + TypeScript + Vite)
 
-AuraDrive is live and hosted on GitHub Pages:
+AuraDrive is hosted on GitHub Pages:
 👉 **[Open AuraDrive Live](https://pabloaballe.github.io/aura-drive/)**
 
-Alternatively, you can run it locally in development mode:
+To run it locally in development mode:
 
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/PabloAballe/aura-drive.git
    ```
-2. **Start the local server**:
-   - On **Windows**: Double-click on `run.bat` (it automatically handles local node paths).
+2. **Launch dev environment**:
+   - On **Windows**: Double-click `run.bat` (automatically configures local node paths and opens the browser).
    - Alternatively (any OS): Run `npm install` and then `npm run dev`.
-3. **Open in browser**:
-   Navigate to: [http://localhost:5173](http://localhost:5173)
 
-*Note: For the best local scanning experience, we recommend using Google Chrome, Microsoft Edge, or Opera.*
+*Note: File System Access API is recommended on Google Chrome, Microsoft Edge, or Opera.*
