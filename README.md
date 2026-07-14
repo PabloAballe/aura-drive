@@ -2,13 +2,13 @@
 
 > **Reclaim your storage, protect your privacy, and organize with a complete safety net.**
 
-[![AuraDrive Banner](./public/hero.png)](https://pabloaballe.github.io/aura-drive/)
+[![AuraDrive Banner](./public/hero.jpg)](https://pabloaballe.github.io/aura-drive/)
 
 ---
 
 ## ⚡ The Problem: Bloated Drives & Lost Peace of Mind
 
-Our hard drives and synced cloud folders are constantly overflowing with duplicate images, forgotten massive backups, and stale screenshots. 
+Our hard drives and synced cloud folders are constantly overflowing with duplicate images, heavy backups, stale screenshots, and abandoned empty folders.
 
 * **The tedious search**: Spending hours manually hunting down duplicates.
 * **The privacy risk**: Uploading your personal directory trees to third-party cloud cleaners.
@@ -18,7 +18,7 @@ Our hard drives and synced cloud folders are constantly overflowing with duplica
 
 ## 🎯 The Solution: AuraDrive
 
-**AuraDrive** is a minimalist, local-first web dashboard that cleans up your folder chaos in seconds. Built on modern web technologies, it runs **100% inside your browser offline**. Your files never leave your computer.
+**AuraDrive** is a minimalist, local-first web utility that cleans up your folder chaos in seconds. Built on modern web technologies, it runs **100% inside your browser offline**. Your files never leave your computer.
 
 ### 👉 [Launch AuraDrive Web App Live](https://pabloaballe.github.io/aura-drive/)
 
@@ -27,9 +27,12 @@ Our hard drives and synced cloud folders are constantly overflowing with duplica
 ## ✨ Features Built for Speed & Safety
 
 * 🛡️ **Absolute Privacy**: No servers, no accounts, no APIs. Directory scanning and local file movements are performed locally using the native browser File System Access API.
-* ↩️ **Safety Net (Interactive Undo)**: Relocate and clean without fear. If you make a mistake, one click on the **Undo** button instantly restores every file back to its original name and path, and cleans up empty folders.
-* 🗑️ **Smart Duplicate Cleaner**: Groups identical files (by name proxy and size) and moves copies to a virtual trash folder (`_Trash/`) in a single click.
-* 📅 **Stale Files Sorter & Ranking**: Set your preferred age threshold (e.g. 90, 180, or 360 days) to see a list of old files ranked by size (largest first). Select and click **Archive** to move them into an `_Archive/` folder, preserving their original folder structure.
+* ↩️ **Safety Net (Interactive Undo)**: Relocate and clean without fear. If you make a mistake, one click on the **Undo** button instantly restores every file and empty folder back to its original name and path.
+* 🔑 **Cryptographic Duplicates Finder**: Groups identical files by calculating their **SHA-256 binary hash** using the Web Crypto API. Identifies true duplicates even if their filenames are completely different (e.g., `backup.zip` and `copy_of_backup.zip`).
+* 📅 **Stale Files Sorter**: Set your preferred age threshold (e.g., 90, 180, or 365 days) and category filters to see a list of old files. Select and click **Archive** to move them into an `_Archive/` folder, preserving their original relative paths.
+* 📦 **Large Files Size Ranking**: Instantly displays all scanned files sorted descending by size, allowing you to quickly spot heavy video clips, logs, or databases that are eating up your disk space.
+* 📁 **Empty Folders Cleaner**: Scans your directory tree recursively to find and safely remove empty directories, keeping your drive clean and organized.
+* ⚙️ **Unified Settings Drawer**: Access parameters like stale days and duplicate cleanup strategies (Trash, Delete permanently, Rename) in a sleek, side-out settings panel drawer.
 
 ---
 
@@ -38,6 +41,7 @@ Our hard drives and synced cloud folders are constantly overflowing with duplica
 We've included a pre-configured [test-folder](./test-folder) in this repository containing mock files so you can test all features safely out of the box:
 * **Duplicate Screeners**: Multiple identical images and screenshot copies.
 * **Stale Archives**: Large backups and videos modified months ago.
+* **Empty Directories**: Pre-configured empty folders ready to be cleaned.
 
 1. Open [AuraDrive Live](https://pabloaballe.github.io/aura-drive/).
 2. Select or drag the [test-folder](./test-folder) into the app.
