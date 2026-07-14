@@ -2,7 +2,7 @@
 
 > **Reclaim your storage, protect your privacy, and organize with a complete safety net.**
 
-[![AuraDrive Banner](./public/hero.jpg)](https://pabloaballe.github.io/aura-drive/)
+[![AuraDrive Banner](./public/hero.png)](https://pabloaballe.github.io/aura-drive/)
 
 ---
 
