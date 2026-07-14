@@ -14,6 +14,7 @@ export default function App() {
   // Core State
   const [files, setFiles] = useState<ScannedFile[]>([]);
   const [staleFiles, setStaleFiles] = useState<ScannedFile[]>([]);
+  const [largeFiles, setLargeFiles] = useState<ScannedFile[]>([]);
   const [emptyFolders, setEmptyFolders] = useState<DirectoryLog[]>([]);
   const [duplicateInfo, setDuplicateInfo] = useState({ 
     duplicateGroups: [] as any[], 
@@ -26,9 +27,10 @@ export default function App() {
   // Folder Context
   const [loadedFolderName, setLoadedFolderName] = useState('');
   const [isFolderLoaded, setIsFolderLoaded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'duplicates' | 'stale' | 'folders'>('duplicates');
+  const [activeTab, setActiveTab] = useState<'duplicates' | 'stale' | 'folders' | 'sizeRank'>('duplicates');
 
-  // Settings
+  // Settings Menu Drawer
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [staleDays, setStaleDays] = useState(180);
   const [duplicateStrategy, setDuplicateStrategy] = useState(localStorage.getItem('auradrive_dup_strategy') || 'trash');
 
@@ -136,9 +138,16 @@ export default function App() {
       const emptyDirs = await localFS.scanEmptyDirectories();
       const mappedEmptyDirs = emptyDirs.map(d => ({ ...d, shouldProcess: true })) as any[];
 
+      // Build size ranking list (excluding trash & archive, sorted descending)
+      const ranked = [...scanned]
+        .filter(f => !f.isDuplicate && !f.path.startsWith('_Trash/') && !f.path.startsWith('_Archive/'))
+        .sort((a, b) => b.size - a.size)
+        .map(f => ({ ...f, shouldProcess: false }));
+
       setFiles(scanned);
       setDuplicateInfo(dups);
       setEmptyFolders(mappedEmptyDirs);
+      setLargeFiles(ranked);
       
       const stale = detectStaleFiles(scanned, staleDays, staleFilterType);
       if (staleSortType === 'size') {
@@ -220,9 +229,15 @@ export default function App() {
       const emptyDirs = await localFS.scanEmptyDirectories();
       const mappedEmptyDirs = emptyDirs.map(d => ({ ...d, shouldProcess: true })) as any[];
 
+      const ranked = [...scanned]
+        .filter(f => !f.isDuplicate && !f.path.startsWith('_Trash/') && !f.path.startsWith('_Archive/'))
+        .sort((a, b) => b.size - a.size)
+        .map(f => ({ ...f, shouldProcess: false }));
+
       setFiles(scanned);
       setDuplicateInfo(dups);
       setEmptyFolders(mappedEmptyDirs);
+      setLargeFiles(ranked);
       
       const stale = detectStaleFiles(scanned, staleDays, staleFilterType);
       if (staleSortType === 'size') {
@@ -301,6 +316,39 @@ export default function App() {
       setIsScanning(false);
       addNotification("Archive Error", e.message, 'error');
       alert("Error archiving files: " + e.message);
+    }
+  };
+
+  /**
+   * Action Clean Selected Large Files
+   */
+  const handleCleanLargeFiles = async () => {
+    const selectedLarge = largeFiles.filter(f => f.shouldProcess === true);
+    const total = selectedLarge.length;
+
+    if (total === 0) return;
+
+    const confirmMsg = `Do you want to move the ${total} selected large files to the Virtual Trash (_Trash/)?`;
+    if (!confirm(confirmMsg)) return;
+
+    setIsScanning(true);
+    setProgressText("Cleaning large files...");
+    setProgressSubtext("Moving files to trash...");
+
+    try {
+      await localFS.cleanDuplicates(selectedLarge, 'trash', (count, totalCount, msg) => {
+        setProgressText(`Moving: ${count} of ${totalCount}`);
+        setProgressSubtext(msg);
+      });
+
+      addNotification("Large Files Cleaned", `Successfully moved ${total} files to _Trash/.`, 'success');
+      setShowUndoBanner(true);
+      await scanFolderQuietly();
+    } catch (e: any) {
+      console.error("Clean large files failed:", e);
+      setIsScanning(false);
+      addNotification("Cleanup Error", e.message, 'error');
+      alert("Error cleaning large files: " + e.message);
     }
   };
 
@@ -388,6 +436,15 @@ export default function App() {
     }));
   };
 
+  const handleToggleLargeSelection = (path: string) => {
+    setLargeFiles(prev => prev.map(f => {
+      if (f.path === path) {
+        return { ...f, shouldProcess: !f.shouldProcess };
+      }
+      return f;
+    }));
+  };
+
   const handleToggleFolderSelection = (path: string) => {
     setEmptyFolders(prev => prev.map(f => {
       if (f.path === path) {
@@ -409,7 +466,12 @@ export default function App() {
 
   const handleToggleSelectAllStale = (e: React.ChangeEvent<HTMLInputElement>) => {
     const isChecked = e.target.checked;
-    setStaleFiles(prev => ({ ...prev, shouldProcess: isChecked } as any));
+    setStaleFiles(prev => prev.map(f => ({ ...f, shouldProcess: isChecked })));
+  };
+
+  const handleToggleSelectAllLarge = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isChecked = e.target.checked;
+    setLargeFiles(prev => prev.map(f => ({ ...f, shouldProcess: isChecked })));
   };
 
   const handleToggleSelectAllFolders = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -420,6 +482,7 @@ export default function App() {
   const clearWorkspaceState = () => {
     setFiles([]);
     setStaleFiles([]);
+    setLargeFiles([]);
     setEmptyFolders([]);
     setDuplicateInfo({ 
       duplicateGroups: [], 
@@ -445,10 +508,12 @@ export default function App() {
   const countAll = files.length;
   const countDups = duplicateInfo.duplicateCount;
   const countStale = staleFiles.length;
+  const countLarge = largeFiles.length;
   const countFolders = emptyFolders.length;
 
   const activeDupsToProcess = files.some(f => f.isDuplicate && f.shouldProcess !== false);
   const activeStaleToProcess = staleFiles.some(f => f.shouldProcess === true);
+  const activeLargeToProcess = largeFiles.some(f => f.shouldProcess === true);
   const activeFoldersToProcess = emptyFolders.some((f: any) => f.shouldProcess === true);
 
   const getFileIcon = (filename: string) => {
@@ -467,7 +532,7 @@ export default function App() {
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--background)' }}>
       
       {/* MAIN CONTAINER */}
-      <div id="app-container" style={{ flex: 1, padding: '0 24px' }}>
+      <div id="app-container" style={{ flex: 1, padding: '0 24px', overflow: 'hidden' }}>
         
         {/* SHADCN HEADER - CLEAN & FUNCTIONAL */}
         <header className="glass" style={{ margin: '0 0 24px 0', padding: '16px 0', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderRadius: 0 }}>
@@ -479,7 +544,7 @@ export default function App() {
             <span style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: '4px', marginLeft: '6px' }}>Local Cleaner</span>
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}>
             {/* Notification Bell Dropdown Button */}
             <button 
               className="action-btn secondary-btn" 
@@ -495,7 +560,7 @@ export default function App() {
 
             {/* Notification Dropdown Menu */}
             {showNotificationDropdown && (
-              <div className="glass" style={{ position: 'absolute', top: '44px', right: '0px', width: '280px', maxHeight: '350px', overflowY: 'auto', zIndex: 999, padding: '12px', border: '1px solid var(--border)', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div className="glass" style={{ position: 'absolute', top: '44px', right: '48px', width: '280px', maxHeight: '350px', overflowY: 'auto', zIndex: 999, padding: '12px', border: '1px solid var(--border)', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
                   <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Activity Logs ({notifications.length})</span>
                   <button onClick={() => setNotifications([])} style={{ background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem' }}>Clear All</button>
@@ -515,6 +580,16 @@ export default function App() {
                 )}
               </div>
             )}
+
+            {/* Settings Drawer Button */}
+            <button 
+              className="action-btn secondary-btn" 
+              onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
+              style={{ padding: '8px', borderRadius: '50%', width: '36px', height: '36px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="Scanner Settings"
+            >
+              <i className="fa-solid fa-gear" style={{ fontSize: '0.95rem' }}></i>
+            </button>
           </div>
         </header>
 
@@ -539,11 +614,77 @@ export default function App() {
           ))}
         </div>
 
-        {/* CSS for Toast slideIn animation */}
+        {/* SETTINGS MENU DRAWER (SLIDE-OUT SHEET) */}
+        {showSettingsDrawer && (
+          <div className="glass" style={{ position: 'fixed', top: 0, right: 0, width: '340px', height: '100vh', backgroundColor: 'var(--card)', borderLeft: '1px solid var(--border)', zIndex: 10000, boxShadow: '-10px 0 30px rgba(0,0,0,0.5)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', animation: 'slideInRight 0.2s ease-out forwards' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+              <span style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>SCANNER SETTINGS</span>
+              <button onClick={() => setShowSettingsDrawer(false)} style={{ background: 'transparent', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer', fontSize: '1.25rem', outline: 'none' }}>
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            
+            {/* Old Files Days Slider */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--foreground)' }}>Stale Files Age</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--warning)' }}>{staleDays} days</span>
+              </div>
+              <input 
+                type="range" 
+                min="30" 
+                max="365" 
+                step="5"
+                value={staleDays} 
+                onChange={(e) => setStaleDays(parseInt(e.target.value))}
+                style={{ width: '100%' }}
+              />
+              <span style={{ fontSize: '0.66rem', color: 'var(--muted-foreground)' }}>
+                Files unmodified for {staleDays} days are classed as "stale".
+              </span>
+            </div>
+
+            {/* Duplicate Strategy Dropdown */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.78rem', color: 'var(--foreground)' }}>Duplicates Strategy</label>
+              <select 
+                className="rule-input-field" 
+                style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.78rem', width: '100%', outline: 'none' }}
+                value={duplicateStrategy}
+                onChange={(e) => handleSaveSettings(e.target.value)}
+              >
+                <option value="trash">Move to Trash (_Trash/)</option>
+                <option value="delete">Delete Permanently</option>
+                <option value="mark">Rename (Prefix with duplicate_)</option>
+              </select>
+            </div>
+
+            {/* Ignored Folders list */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '6px', marginTop: 'auto' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <i className="fa-solid fa-triangle-exclamation"></i>
+                Auto-ignored directories:
+              </span>
+              <span style={{ fontSize: '0.68rem', fontFamily: 'monospace', color: 'var(--muted-foreground)', lineHeight: 1.4, backgroundColor: 'rgba(255,255,255,0.01)', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                .git<br />
+                node_modules<br />
+                _Trash<br />
+                _Archive
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Backdrop for Settings Drawer */}
+        {showSettingsDrawer && (
+          <div onClick={() => setShowSettingsDrawer(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 9999 }}></div>
+        )}
+
+        {/* CSS for slideInRight animation */}
         <style>{`
-          @keyframes slideIn {
-            from { transform: translateX(120%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+          @keyframes slideInRight {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
           }
         `}</style>
 
@@ -597,59 +738,6 @@ export default function App() {
                     {loadedFolderName}
                   </div>
                 )}
-              </div>
-
-              {/* Settings Panel */}
-              <div className="glass" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted-foreground)' }}>
-                  Scanner Settings
-                </div>
-                
-                {/* Old Files Days Slider */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--foreground)' }}>Stale Files Age</span>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--warning)' }}>{staleDays} days</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="30" 
-                    max="365" 
-                    step="5"
-                    value={staleDays} 
-                    onChange={(e) => setStaleDays(parseInt(e.target.value))}
-                    style={{ width: '100%' }}
-                  />
-                  <span style={{ fontSize: '0.66rem', color: 'var(--muted-foreground)' }}>
-                    Files unmodified for {staleDays} days are classed as "stale".
-                  </span>
-                </div>
-
-                {/* Duplicate Strategy Dropdown */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.78rem', color: 'var(--foreground)' }}>Duplicates Strategy</label>
-                  <select 
-                    className="rule-input-field" 
-                    style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.78rem', width: '100%', outline: 'none' }}
-                    value={duplicateStrategy}
-                    onChange={(e) => handleSaveSettings(e.target.value)}
-                  >
-                    <option value="trash">Move to Trash (_Trash/)</option>
-                    <option value="delete">Delete Permanently</option>
-                    <option value="mark">Rename (Prefix with duplicate_)</option>
-                  </select>
-                </div>
-
-                {/* Ignored Folders list */}
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="fa-solid fa-triangle-exclamation"></i>
-                    Auto-ignored directories:
-                  </span>
-                  <span style={{ fontSize: '0.68rem', fontFamily: 'monospace', color: 'var(--muted-foreground)' }}>
-                    .git, node_modules, _Trash, _Archive
-                  </span>
-                </div>
               </div>
 
               {/* STAT Card 1: Total Scanned Files */}
@@ -714,12 +802,11 @@ export default function App() {
               <div className="workspace-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--foreground)' }}>DUPLICATE FILE CLEANER</h3>
-                  
                   {/* Settings can be adjusted in the left sidebar panel */}
                 </div>
                 
-                {/* Three Tabs Toggle */}
-                <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '2px' }}>
+                {/* Four Tabs Toggle */}
+                <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '2px', overflowX: 'auto' }}>
                   <button 
                     className={`tab-btn ${activeTab === 'duplicates' ? 'active' : ''}`} 
                     onClick={() => setActiveTab('duplicates')}
@@ -731,6 +818,12 @@ export default function App() {
                     onClick={() => setActiveTab('stale')}
                   >
                     <i className="fa-solid fa-clock"></i> Old Files ({countStale})
+                  </button>
+                  <button 
+                    className={`tab-btn ${activeTab === 'sizeRank' ? 'active' : ''}`} 
+                    onClick={() => setActiveTab('sizeRank')}
+                  >
+                    <i className="fa-solid fa-arrow-down-wide-narrow"></i> Large Files ({countLarge})
                   </button>
                   <button 
                     className={`tab-btn ${activeTab === 'folders' ? 'active' : ''}`} 
@@ -810,245 +903,308 @@ export default function App() {
                     )}
 
                     <div className="table-container" style={{ flex: 1, padding: '0 20px 20px 20px' }}>
-                    
-                    {/* TAB 1: DUPLICATES */}
-                    {activeTab === 'duplicates' && (
-                      <table>
-                        <thead>
-                          <tr>
-                            <th width="30">
-                              <input 
-                                type="checkbox" 
-                                className="checkbox-custom" 
-                                onChange={handleToggleSelectAllDups}
-                                checked={files.length > 0 && files.filter(f => f.isDuplicate).every(f => f.shouldProcess !== false)}
-                              />
-                            </th>
-                            <th>Name</th>
-                            <th>Size</th>
-                            <th>Group Info</th>
-                            <th>Path</th>
-                            <th>Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {countDups === 0 ? (
+                      
+                      {/* TAB 1: DUPLICATES */}
+                      {activeTab === 'duplicates' && (
+                        <table>
+                          <thead>
                             <tr>
-                              <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>
-                                No duplicate files found in this folder.
-                              </td>
+                              <th width="30">
+                                <input 
+                                  type="checkbox" 
+                                  className="checkbox-custom" 
+                                  onChange={handleToggleSelectAllDups}
+                                  checked={files.length > 0 && files.filter(f => f.isDuplicate).every(f => f.shouldProcess !== false)}
+                                />
+                              </th>
+                              <th>Name</th>
+                              <th>Size</th>
+                              <th>Group Info</th>
+                              <th>Path</th>
+                              <th>Action</th>
                             </tr>
-                          ) : (
-                            files.filter(f => f.isDuplicateOriginal || f.isDuplicate).map((file, idx) => {
-                              const isChecked = file.shouldProcess !== false;
-                              const isScreenshot = isScreenshotFile(file.name);
-                              const isImage = isImageFile(file.name);
+                          </thead>
+                          <tbody>
+                            {countDups === 0 ? (
+                              <tr>
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>
+                                  No duplicate files found in this folder.
+                                </td>
+                              </tr>
+                            ) : (
+                              files.filter(f => f.isDuplicateOriginal || f.isDuplicate).map((file, idx) => {
+                                const isChecked = file.shouldProcess !== false;
+                                const isScreenshot = isScreenshotFile(file.name);
+                                const isImage = isImageFile(file.name);
 
-                              if (file.isDuplicateOriginal) {
+                                if (file.isDuplicateOriginal) {
+                                  return (
+                                    <React.Fragment key={file.path || idx}>
+                                      <tr className="duplicate-group-header">
+                                        <td colSpan={6}>
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                                              <i className="fa-solid fa-clone text-warning" style={{ marginRight: '8px' }}></i>
+                                              Duplicate Group: <strong>{file.name}</strong>
+                                              {isScreenshot && <span className="badge badge-warning" style={{ marginLeft: '8px', fontSize: '0.66rem' }}><i className="fa-solid fa-desktop"></i> Screenshot</span>}
+                                              {!isScreenshot && isImage && <span className="badge badge-info" style={{ marginLeft: '8px', fontSize: '0.66rem' }}><i className="fa-solid fa-image"></i> Image</span>}
+                                            </span>
+                                            <span style={{ fontSize: '0.74rem', color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>
+                                              Original
+                                            </span>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                      <tr className="duplicate-child">
+                                        <td>
+                                          <input type="checkbox" disabled className="checkbox-custom" checked />
+                                        </td>
+                                        <td>
+                                          <div className="file-item">
+                                            <i className="fa-solid fa-circle-check text-success"></i>
+                                            <span className="file-name-cell">{file.name}</span>
+                                          </div>
+                                        </td>
+                                        <td>{formatBytes(file.size)}</td>
+                                        <td>
+                                          <span className="badge badge-success">Original</span>
+                                        </td>
+                                        <td style={{ fontFamily: 'monospace', fontSize: '0.76rem', color: 'var(--muted-foreground)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={file.path}>
+                                          {file.path}
+                                        </td>
+                                        <td>
+                                          <span style={{ color: 'var(--secondary)', fontSize: '0.76rem', fontWeight: 600 }}>Keep</span>
+                                        </td>
+                                      </tr>
+                                    </React.Fragment>
+                                  );
+                                }
+
                                 return (
-                                  <React.Fragment key={file.path || idx}>
-                                    <tr className="duplicate-group-header">
-                                      <td colSpan={6}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                                          <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                                            <i className="fa-solid fa-clone text-warning" style={{ marginRight: '8px' }}></i>
-                                            Duplicate Group: <strong>{file.name}</strong>
-                                            {isScreenshot && <span className="badge badge-warning" style={{ marginLeft: '8px', fontSize: '0.66rem' }}><i className="fa-solid fa-desktop"></i> Screenshot</span>}
-                                            {!isScreenshot && isImage && <span className="badge badge-info" style={{ marginLeft: '8px', fontSize: '0.66rem' }}><i className="fa-solid fa-image"></i> Image</span>}
-                                          </span>
-                                          <span style={{ fontSize: '0.74rem', color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>
-                                            Original
-                                          </span>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                    <tr className="duplicate-child">
-                                      <td>
-                                        <input type="checkbox" disabled className="checkbox-custom" checked />
-                                      </td>
-                                      <td>
-                                        <div className="file-item">
-                                          <i className="fa-solid fa-circle-check text-success"></i>
-                                          <span className="file-name-cell">{file.name}</span>
-                                        </div>
-                                      </td>
-                                      <td>{formatBytes(file.size)}</td>
-                                      <td>
-                                        <span className="badge badge-success">Original</span>
-                                      </td>
-                                      <td style={{ fontFamily: 'monospace', fontSize: '0.76rem', color: 'var(--muted-foreground)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={file.path}>
-                                        {file.path}
-                                      </td>
-                                      <td>
-                                        <span style={{ color: 'var(--secondary)', fontSize: '0.76rem', fontWeight: 600 }}>Keep</span>
-                                      </td>
-                                    </tr>
-                                  </React.Fragment>
+                                  <tr className="duplicate-child" key={file.path || idx}>
+                                    <td>
+                                      <input 
+                                        type="checkbox" 
+                                        className="checkbox-custom" 
+                                        checked={isChecked} 
+                                        onChange={() => handleToggleFileSelection(file.path)}
+                                      />
+                                    </td>
+                                    <td>
+                                      <div className="file-item">
+                                        <i className="fa-solid fa-trash-can text-danger"></i>
+                                        <span className="file-name-cell" style={{ color: 'var(--muted-foreground)', textDecoration: 'line-through' }}>{file.name}</span>
+                                      </div>
+                                    </td>
+                                    <td>{formatBytes(file.size)}</td>
+                                    <td>
+                                      <span className="badge badge-danger">Duplicate</span>
+                                    </td>
+                                    <td style={{ fontFamily: 'monospace', fontSize: '0.76rem', color: 'var(--muted-foreground)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={file.path}>
+                                      {file.path}
+                                    </td>
+                                    <td>
+                                      <span style={{ color: 'var(--danger)', fontSize: '0.76rem', fontWeight: 600 }}>
+                                        {duplicateStrategy === 'trash' ? 'Trash' : (duplicateStrategy === 'delete' ? 'Delete' : 'Rename')}
+                                      </span>
+                                    </td>
+                                  </tr>
                                 );
-                              }
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      )}
 
-                              return (
-                                <tr className="duplicate-child" key={file.path || idx}>
-                                  <td>
-                                    <input 
-                                      type="checkbox" 
-                                      className="checkbox-custom" 
-                                      checked={isChecked} 
-                                      onChange={() => handleToggleFileSelection(file.path)}
-                                    />
-                                  </td>
-                                  <td>
-                                    <div className="file-item">
-                                      <i className="fa-solid fa-trash-can text-danger"></i>
-                                      <span className="file-name-cell" style={{ color: 'var(--muted-foreground)', textDecoration: 'line-through' }}>{file.name}</span>
-                                    </div>
-                                  </td>
-                                  <td>{formatBytes(file.size)}</td>
-                                  <td>
-                                    <span className="badge badge-danger">Duplicate</span>
-                                  </td>
-                                  <td style={{ fontFamily: 'monospace', fontSize: '0.76rem', color: 'var(--muted-foreground)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={file.path}>
-                                    {file.path}
-                                  </td>
-                                  <td>
-                                    <span style={{ color: 'var(--danger)', fontSize: '0.76rem', fontWeight: 600 }}>
-                                      {duplicateStrategy === 'trash' ? 'Trash' : (duplicateStrategy === 'delete' ? 'Delete' : 'Rename')}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    )}
-
-                    {/* TAB 2: OLD FILES */}
-                    {activeTab === 'stale' && (
-                      <table>
-                        <thead>
-                          <tr>
-                            <th width="30">
-                              <input 
-                                type="checkbox" 
-                                className="checkbox-custom" 
-                                onChange={handleToggleSelectAllStale}
-                                checked={staleFiles.length > 0 && staleFiles.every(f => f.shouldProcess === true)}
-                              />
-                            </th>
-                            <th>Name</th>
-                            <th>Age</th>
-                            <th>Last Modified</th>
-                            <th>Size Rank</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {countStale === 0 ? (
+                      {/* TAB 2: OLD FILES */}
+                      {activeTab === 'stale' && (
+                        <table>
+                          <thead>
                             <tr>
-                              <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>
-                                No stale files found matching criteria.
-                              </td>
+                              <th width="30">
+                                <input 
+                                  type="checkbox" 
+                                  className="checkbox-custom" 
+                                  onChange={handleToggleSelectAllStale}
+                                  checked={staleFiles.length > 0 && staleFiles.every(f => f.shouldProcess === true)}
+                                />
+                              </th>
+                              <th>Name</th>
+                              <th>Age</th>
+                              <th>Last Modified</th>
+                              <th>Size Rank</th>
                             </tr>
-                          ) : (
-                            staleFiles.map((file, idx) => {
-                              const isChecked = file.shouldProcess === true;
-                              const modDate = new Date(file.lastModified).toLocaleDateString();
+                          </thead>
+                          <tbody>
+                            {countStale === 0 ? (
+                              <tr>
+                                <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>
+                                  No stale files found matching criteria.
+                                </td>
+                              </tr>
+                            ) : (
+                              staleFiles.map((file, idx) => {
+                                const isChecked = file.shouldProcess === true;
+                                const modDate = new Date(file.lastModified).toLocaleDateString();
 
-                              return (
-                                <tr key={file.path || idx}>
-                                  <td>
-                                    <input 
-                                      type="checkbox" 
-                                      className="checkbox-custom" 
-                                      checked={isChecked} 
-                                      onChange={() => handleToggleStaleSelection(file.path)}
-                                    />
-                                  </td>
-                                  <td>
-                                    <div className="file-item">
-                                      <i className={getFileIcon(file.name)}></i>
-                                      <span className="file-name-cell" title={file.path}>{file.name}</span>
-                                      {file.isScreenshot && <span className="badge badge-warning" style={{ fontSize: '0.62rem', marginLeft: '4px' }}>Screenshot</span>}
-                                    </div>
-                                  </td>
-                                  <td>
-                                    <span className="badge badge-warning" style={{ fontSize: '0.72rem' }}>{file.ageDays} days</span>
-                                  </td>
-                                  <td style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{modDate}</td>
-                                  <td style={{ fontWeight: 600 }}>{formatBytes(file.size)}</td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    )}
+                                return (
+                                  <tr key={file.path || idx}>
+                                    <td>
+                                      <input 
+                                        type="checkbox" 
+                                        className="checkbox-custom" 
+                                        checked={isChecked} 
+                                        onChange={() => handleToggleStaleSelection(file.path)}
+                                      />
+                                    </td>
+                                    <td>
+                                      <div className="file-item">
+                                        <i className={getFileIcon(file.name)}></i>
+                                        <span className="file-name-cell" title={file.path}>{file.name}</span>
+                                        {file.isScreenshot && <span className="badge badge-warning" style={{ fontSize: '0.62rem', marginLeft: '4px' }}>Screenshot</span>}
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <span className="badge badge-warning" style={{ fontSize: '0.72rem' }}>{file.ageDays} days</span>
+                                    </td>
+                                    <td style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{modDate}</td>
+                                    <td style={{ fontWeight: 600 }}>{formatBytes(file.size)}</td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      )}
 
-                    {/* TAB 3: EMPTY FOLDERS */}
-                    {activeTab === 'folders' && (
-                      <table>
-                        <thead>
-                          <tr>
-                            <th width="30">
-                              <input 
-                                type="checkbox" 
-                                className="checkbox-custom" 
-                                onChange={handleToggleSelectAllFolders}
-                                checked={emptyFolders.length > 0 && emptyFolders.every((f: any) => f.shouldProcess === true)}
-                              />
-                            </th>
-                            <th>Folder Name</th>
-                            <th>Relative Directory Path</th>
-                            <th>Status</th>
-                            <th>Action suggested</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {countFolders === 0 ? (
+                      {/* TAB 3: SIZE RANKING */}
+                      {activeTab === 'sizeRank' && (
+                        <table>
+                          <thead>
                             <tr>
-                              <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>
-                                No empty folders found inside this directory structure.
-                              </td>
+                              <th width="30">
+                                <input 
+                                  type="checkbox" 
+                                  className="checkbox-custom" 
+                                  onChange={handleToggleSelectAllLarge}
+                                  checked={largeFiles.length > 0 && largeFiles.every(f => f.shouldProcess === true)}
+                                />
+                              </th>
+                              <th>Name</th>
+                              <th>File Type</th>
+                              <th>Relative Path</th>
+                              <th>Exact File Size</th>
                             </tr>
-                          ) : (
-                            emptyFolders.map((folder: any, idx) => {
-                              const isChecked = folder.shouldProcess === true;
+                          </thead>
+                          <tbody>
+                            {countLarge === 0 ? (
+                              <tr>
+                                <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>
+                                  No files scanned yet.
+                                </td>
+                              </tr>
+                            ) : (
+                              largeFiles.map((file, idx) => {
+                                const isChecked = file.shouldProcess === true;
 
-                              return (
-                                <tr key={folder.path || idx}>
-                                  <td>
-                                    <input 
-                                      type="checkbox" 
-                                      className="checkbox-custom" 
-                                      checked={isChecked} 
-                                      onChange={() => handleToggleFolderSelection(folder.path)}
-                                    />
-                                  </td>
-                                  <td>
-                                    <div className="file-item">
-                                      <i className="fa-solid fa-folder text-warning"></i>
-                                      <span className="file-name-cell" style={{ fontWeight: 500 }}>{folder.name}</span>
-                                    </div>
-                                  </td>
-                                  <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
-                                    {folder.path}
-                                  </td>
-                                  <td>
-                                    <span className="badge badge-danger" style={{ fontSize: '0.72rem' }}>Empty Folder</span>
-                                  </td>
-                                  <td>
-                                    <span style={{ color: 'var(--danger)', fontSize: '0.76rem', fontWeight: 600 }}>Remove Directory</span>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                </>
-              )}
+                                return (
+                                  <tr key={file.path || idx}>
+                                    <td>
+                                      <input 
+                                        type="checkbox" 
+                                        className="checkbox-custom" 
+                                        checked={isChecked} 
+                                        onChange={() => handleToggleLargeSelection(file.path)}
+                                      />
+                                    </td>
+                                    <td>
+                                      <div className="file-item">
+                                        <i className={getFileIcon(file.name)}></i>
+                                        <span className="file-name-cell" style={{ fontWeight: 500 }} title={file.name}>{file.name}</span>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <span style={{ fontSize: '0.76rem', color: 'var(--muted-foreground)' }}>
+                                        {file.name.substring(file.name.lastIndexOf('.')).toUpperCase() || 'FILE'}
+                                      </span>
+                                    </td>
+                                    <td style={{ fontFamily: 'monospace', fontSize: '0.76rem', color: 'var(--muted-foreground)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={file.path}>
+                                      {file.path}
+                                    </td>
+                                    <td style={{ fontWeight: 600, color: 'var(--warning)' }}>{formatBytes(file.size)}</td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      )}
+
+                      {/* TAB 4: EMPTY FOLDERS */}
+                      {activeTab === 'folders' && (
+                        <table>
+                          <thead>
+                            <tr>
+                              <th width="30">
+                                <input 
+                                  type="checkbox" 
+                                  className="checkbox-custom" 
+                                  onChange={handleToggleSelectAllFolders}
+                                  checked={emptyFolders.length > 0 && emptyFolders.every((f: any) => f.shouldProcess === true)}
+                                />
+                              </th>
+                              <th>Folder Name</th>
+                              <th>Relative Directory Path</th>
+                              <th>Status</th>
+                              <th>Action suggested</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {countFolders === 0 ? (
+                              <tr>
+                                <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>
+                                  No empty folders found inside this directory structure.
+                                </td>
+                              </tr>
+                            ) : (
+                              emptyFolders.map((folder: any, idx) => {
+                                const isChecked = folder.shouldProcess === true;
+
+                                return (
+                                  <tr key={folder.path || idx}>
+                                    <td>
+                                      <input 
+                                        type="checkbox" 
+                                        className="checkbox-custom" 
+                                        checked={isChecked} 
+                                        onChange={() => handleToggleFolderSelection(folder.path)}
+                                      />
+                                    </td>
+                                    <td>
+                                      <div className="file-item">
+                                        <i className="fa-solid fa-folder text-warning"></i>
+                                        <span className="file-name-cell" style={{ fontWeight: 500 }}>{folder.name}</span>
+                                      </div>
+                                    </td>
+                                    <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>
+                                      {folder.path}
+                                    </td>
+                                    <td>
+                                      <span className="badge badge-danger" style={{ fontSize: '0.72rem' }}>Empty Folder</span>
+                                    </td>
+                                    <td>
+                                      <span style={{ color: 'var(--danger)', fontSize: '0.76rem', fontWeight: 600 }}>Remove Directory</span>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 {/* Table Footer Controls (inside the card matching layout) */}
                 {isFolderLoaded && !isScanning && (
@@ -1056,6 +1212,7 @@ export default function App() {
                     <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', fontWeight: 500 }}>
                       {activeTab === 'duplicates' && `${countDups} duplicates flaggable`}
                       {activeTab === 'stale' && `${staleFiles.filter(f => f.shouldProcess).length} of ${countStale} files selected`}
+                      {activeTab === 'sizeRank' && `${largeFiles.filter(f => f.shouldProcess).length} of ${countLarge} large files selected`}
                       {activeTab === 'folders' && `${emptyFolders.filter((f: any) => f.shouldProcess).length} of ${countFolders} empty folders selected`}
                     </span>
                     <div style={{ display: 'flex', gap: '10px' }}>
@@ -1072,6 +1229,14 @@ export default function App() {
                           <button className="action-btn secondary-btn" onClick={handleToggleSelectAllStale} style={{ padding: '6px 12px', fontSize: '0.78rem' }}>Toggle Select All</button>
                           <button className="action-btn" onClick={handleArchiveStaleFiles} disabled={!activeStaleToProcess} style={{ padding: '6px 12px', fontSize: '0.78rem', backgroundColor: 'var(--primary)', color: '#fff' }}>
                             Archive Selected ({staleFiles.filter(f => f.shouldProcess).length} Files)
+                          </button>
+                        </>
+                      )}
+                      {activeTab === 'sizeRank' && (
+                        <>
+                          <button className="action-btn secondary-btn" onClick={handleToggleSelectAllLarge} style={{ padding: '6px 12px', fontSize: '0.78rem' }}>Toggle Select All</button>
+                          <button className="action-btn" onClick={handleCleanLargeFiles} disabled={!activeLargeToProcess} style={{ padding: '6px 12px', fontSize: '0.78rem', backgroundColor: 'var(--danger)', color: '#fff' }}>
+                            Trash Selected ({largeFiles.filter(f => f.shouldProcess).length} Files)
                           </button>
                         </>
                       )}
